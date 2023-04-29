@@ -4,7 +4,7 @@ import socket
 import threading
 import uinput
 from typing.io import IO
-from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set
+from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set, pads_teardown
 from .admin import using_admin_channel
 
 
@@ -133,6 +133,17 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
         remote.close()
 
 
+server_wait = threading.Event()
+
+
+def is_server_running():
+    """
+    Tells whether the server is running.
+    """
+
+    return server_wait.is_set()
+
+
 def server_loop(server: socket.socket, device_name: str, admin_writer: IO):
     """
     Listens to ths socket perpetually, or until it is closed.
@@ -144,14 +155,21 @@ def server_loop(server: socket.socket, device_name: str, admin_writer: IO):
     :param device_name: The base device name for the pads.
     """
 
-    while True:
-        try:
-            remote, address = server.accept()
-            threading.Thread(target=pad_loop, args=(remote, device_name, admin_writer)).start()
-        except OSError as e:
-            # Accept errors of type EBADF mean that the server
-            # is closed. Any other exception should be logged.
-            if e.errno != errno.EBADF:
-                raise
-            else:
-                break
+    server_wait.wait()
+    server_wait.set()
+    try:
+        while True:
+            try:
+                remote, address = server.accept()
+                threading.Thread(target=pad_loop, args=(remote, device_name, admin_writer)).start()
+            except OSError as e:
+                # Accept errors of type EBADF mean that the server
+                # is closed. Any other exception should be logged.
+                if e.errno != errno.EBADF:
+                    raise
+                else:
+                    break
+    finally:
+        # Tears down the pads in the server.
+        pads_teardown()
+        server_wait.clear()
