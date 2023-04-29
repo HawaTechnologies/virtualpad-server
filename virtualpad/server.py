@@ -1,8 +1,11 @@
+import json
 import errno
 import socket
 import threading
 import uinput
+from typing.io import IO
 from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set
+from .admin import using_admin_channel
 
 
 _BUFLEN = 32
@@ -51,7 +54,7 @@ def pad_heartbeat(remote: socket.socket, index: int, device: uinput.Device):
     pass
 
 
-def pad_loop(remote: socket.socket, device_name: str):
+def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
     """
     This loop runs in a thread, reads all the button commands.
     It reads, from socket, buttons and axes changes and sends
@@ -59,6 +62,7 @@ def pad_loop(remote: socket.socket, device_name: str):
 
     Note that this thread will die automatically when the pad
     is released (or all the pads are terminated).
+    :param admin_writer: The admin interface to write messages into.
     :param device_name: The internal device name of the pad.
     :param remote: The socket to read commands from.
     """
@@ -84,7 +88,7 @@ def pad_loop(remote: socket.socket, device_name: str):
         remote.send(LOGIN_SUCCESS)
         # Initializing the pad.
         pad_set(index, device_name, nickname)
-        # TODO notify admin interface about pad set.
+        json.dump({"command": "pad_set", "nickname": nickname, "index": index}, admin_writer)
         entry = pad_get(index)
         device, nickname, _ = entry
         threading.Thread(target=pad_heartbeat, args=(remote, index, device)).start()
@@ -100,19 +104,17 @@ def pad_loop(remote: socket.socket, device_name: str):
                 pad_clear(index)
                 return
             # We're not managing other client commands so far.
-    except PadMismatch:
+    except PadMismatch as e:
         # Forgive this one. This is expected. Other exceptions
         # will bubble and be logged, but this is a standard
         # signal triggered by the user itself to de-auth or
         # by any explicit request (from client or from admin
         # panel) to disconnect.
-        # TODO notify admin interface about pad close.
+        json.dump({"command": "pad_release", "index": e.args[1]}, admin_writer)
         remote.send(TERMINATED)
     except Exception as e:
-        # TODO notify admin interface about abrupt pad close.
-        # TODO this might also involve a connection abruptly
-        # TODO closed by client timeout.
-        pass
+        # The pad connection was killed.
+        json.dump({"command": "pad_killed", "index": e.args[1]}, admin_writer)
     finally:
         remote.close()
 
@@ -126,14 +128,15 @@ def server_loop(server: socket.socket, device_name: str):
     :param device_name: The base device name for the pads.
     """
 
-    while True:
-        try:
-            remote, address = server.accept()
-            threading.Thread(target=pad_loop, args=(remote, device_name)).start()
-        except OSError as e:
-            # Accept errors of type EBADF mean that the server
-            # is closed. Any other exception should be logged.
-            if e.errno != errno.EBADF:
-                raise
-            else:
-                break
+    with using_admin_channel() as (fw, fr):
+        while True:
+            try:
+                remote, address = server.accept()
+                threading.Thread(target=pad_loop, args=(remote, device_name, fw)).start()
+            except OSError as e:
+                # Accept errors of type EBADF mean that the server
+                # is closed. Any other exception should be logged.
+                if e.errno != errno.EBADF:
+                    raise
+                else:
+                    break
