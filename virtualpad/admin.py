@@ -4,8 +4,9 @@ import contextlib
 from typing.io import IO
 
 
-_FIFO_SERVER_TO_ADMIN = os.path.expanduser("~/.config/Hawa/run/server-to-admin")
-_FIFO_ADMIN_TO_SERVER = os.path.expanduser("~/.config/Hawa/run/admin-to-server")
+# These files are created for pi:pi.
+_FIFO_SERVER_TO_ADMIN = "/home/luismasuelli/.config/Hawa/run/server-to-admin"
+_FIFO_ADMIN_TO_SERVER = "/home/luismasuelli/.config/Hawa/run/admin-to-server"
 
 
 def _clear_channel_fifo_files():
@@ -31,6 +32,7 @@ def _create_channel_fifo_files():
 
     os.mkfifo(_FIFO_SERVER_TO_ADMIN, 0x600)
     os.mkfifo(_FIFO_ADMIN_TO_SERVER, 0x600)
+    os.system("chown luismasuelli:luismasuelli /home/pi/.config/Hawa/run/*")
     return open(_FIFO_SERVER_TO_ADMIN, 'w'), open(_FIFO_ADMIN_TO_SERVER, 'r')
 
 
