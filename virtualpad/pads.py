@@ -149,7 +149,7 @@ def pads_teardown():
     """
 
     for index, item in enumerate(POOL):
-        if item:
+        if item[0]:
             item[0].destroy()
             POOL[index] = (None, None, _regenerate_password())
 
@@ -181,6 +181,4 @@ def pad_send_all(index: int, events: List[Tuple[int, int]], expect: Optional[uin
     _pad_send_all(POOL[index][0], events)
 
 
-# Initialize the pool.
-for index in range(MAX_PAD_COUNT):
-    pad_clear(index)
+pads_teardown()
