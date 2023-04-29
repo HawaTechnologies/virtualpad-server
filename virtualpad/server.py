@@ -1,8 +1,9 @@
 import errno
 import socket
-import uinput
-from .pads import PadMismatch, pad_send_all, pad_clear
+import threading
 
+import uinput
+from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set
 
 _BUFLEN = 32
 # Client commands:
@@ -11,8 +12,10 @@ _BUFLEN = 32
 CLOSE_CONNECTION = _BUFLEN
 
 # Server notifications:
-LOGIN_SUCCESS = bytes([0])
-LOGIN_FAILURE = bytes([1])
+PAD_INVALID = bytes([0])
+PAD_BUSY = bytes([1])
+LOGIN_SUCCESS = bytes([2])
+LOGIN_FAILURE = bytes([3])
 TERMINATED = bytes([2])
 
 
@@ -43,7 +46,12 @@ def _process_events(pad_index: int, length: int, buffer: bytearray, device: uinp
     pad_send_all(pad_index, fixed, device)
 
 
-def pad_loop(remote: socket.socket, index: int, device: uinput.Device, password: str):
+def pad_heartbeat(remote: socket.socket, index: int, device: uinput.Device):
+    # TODO implement this!
+    pass
+
+
+def pad_loop(remote: socket.socket, device_name: str):
     """
     This loop runs in a thread, reads all the button commands.
     It reads, from socket, buttons and axes changes and sends
@@ -51,21 +59,36 @@ def pad_loop(remote: socket.socket, index: int, device: uinput.Device, password:
 
     Note that this thread will die automatically when the pad
     is released (or all the pads are terminated).
-    :param index: The index of the pad.
-    :param device: The value of the pad, on start.
+    :param device_name: The internal device name of the pad.
     :param remote: The socket to read commands from.
-    :param password: The password to try. Visible on screen.
     """
 
     buffer = bytearray(_BUFLEN)
     try:
-        remote.recv_into(buffer, 4)
-        attempted = bytes(buffer[:4]).decode("utf-8")
-        if attempted != password:
+        # Getting the first data.
+        remote.recv_into(buffer, 21)
+        index = buffer[0]
+        attempted = bytes(buffer[1:5]).decode("utf-8")
+        nickname = bytes(buffer[5:21]).decode("utf-8")
+        # Authenticating.
+        if index >= 8:
+            remote.send(PAD_INVALID)
+            return
+        entry = pad_get(index)
+        if entry[0]:
+            remote.send(PAD_BUSY)
+            return
+        if attempted != entry[2]:
             remote.send(LOGIN_FAILURE)
             return
         remote.send(LOGIN_SUCCESS)
-
+        # Initializing the pad.
+        pad_set(index, device_name, nickname)
+        # TODO notify admin interface about pad set.
+        entry = pad_get(index)
+        device, nickname, _ = entry
+        threading.Thread(target=pad_heartbeat, args=(remote, index, device)).start()
+        # Finally, the loop to receive messages.
         while True:
             # Get the received contents.
             remote.recv_into(buffer, 1)
@@ -83,22 +106,30 @@ def pad_loop(remote: socket.socket, index: int, device: uinput.Device, password:
         # signal triggered by the user itself to de-auth or
         # by any explicit request (from client or from admin
         # panel) to disconnect.
+        # TODO notify admin interface about pad close.
         remote.send(TERMINATED)
+    except Exception as e:
+        # TODO notify admin interface about abrupt pad close.
+        # TODO this might also involve a connection abruptly
+        # TODO closed by client timeout.
+        pass
     finally:
         remote.close()
 
 
-def server_loop(server: socket.socket):
+def server_loop(server: socket.socket, device_name: str):
     """
     Listens to ths socket perpetually, or until it is closed.
     Each connection is attempted, authenticated, and then its
     loop starts.
     :param server: The main server socket.
+    :param device_name: The base device name for the pads.
     """
 
     while True:
         try:
             remote, address = server.accept()
+            threading.Thread(target=pad_loop, args=(remote, device_name)).start()
         except OSError as e:
             # Accept errors of type EBADF mean that the server
             # is closed. Any other exception should be logged.
