@@ -33,8 +33,8 @@ def _create_channel_fifo_files():
     """
 
     os.makedirs(_FIFO_PATH, exist_ok=True)
-    os.mkfifo(_FIFO_SERVER_TO_ADMIN, 0x600)
-    os.mkfifo(_FIFO_ADMIN_TO_SERVER, 0x600)
+    os.mkfifo(_FIFO_SERVER_TO_ADMIN, 0o600)
+    os.mkfifo(_FIFO_ADMIN_TO_SERVER, 0o600)
     os.system(f"chown {START_USER}:{START_USER} /home/{START_USER}/.config/Hawa/run/*")
     return open(_FIFO_SERVER_TO_ADMIN, 'w'), open(_FIFO_ADMIN_TO_SERVER, 'r')
 
