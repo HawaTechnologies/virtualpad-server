@@ -151,7 +151,7 @@ def pads_teardown():
     for index, item in enumerate(POOL):
         if item:
             item[0].destroy()
-            POOL[index] = None
+            POOL[index] = (None, None, _regenerate_password())
 
 
 def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]]):
