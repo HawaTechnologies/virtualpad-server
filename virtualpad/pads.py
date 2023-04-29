@@ -1,5 +1,4 @@
 from typing import List, Optional, Tuple
-
 import uinput
 
 
@@ -29,6 +28,38 @@ def make_pad(name: str):
 
 
 POOL: List[Optional[Tuple[uinput.Device, str]]] = [None] * 8
+
+
+# Buttons use 0, 1.
+BTN_NORTH = 0
+BTN_EAST = 1
+BTN_SOUTH = 2
+BTN_WEST = 3
+BTN_L1 = 4
+BTN_R1 = 5
+BTN_L2 = 6
+BTN_R2 = 7
+BTN_SELECT = 8
+BTN_START = 9
+# Axes use -1, 0, 1.
+ABS_X = 10
+ABS_Y = 11
+
+
+_MAPPED_EVENTS: List[Tuple[int, int]] = [
+    uinput.BTN_NORTH,
+    uinput.BTN_EAST,
+    uinput.BTN_SOUTH,
+    uinput.BTN_WEST,
+    uinput.BTN_TL,
+    uinput.BTN_TR,
+    uinput.BTN_TL2,
+    uinput.BTN_TR2,
+    uinput.BTN_SELECT,
+    uinput.BTN_START,
+    uinput.ABS_X,
+    uinput.ABS_Y
+]
 
 
 class PadException(Exception):
@@ -107,3 +138,27 @@ def pads_teardown():
         if item:
             item[0].destroy()
             POOL[index] = None
+
+
+def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]]):
+    """
+    Sends all the events to the device, atomically.
+    :param device: The device to send the events to.
+    :param events: The events to send.
+    """
+
+    # Pass all the commands as events using syn=True, then
+    # after the last one just call .syn().
+    for event, value in events:
+        device.emit(_MAPPED_EVENTS[event], value, syn=True)
+    device.syn()
+
+
+def pad_send_all(index: int, events: List[Tuple[int, int]]):
+    """
+    Sends all the events to the device, atomically.
+    :param index: The index of the device to send the events to.
+    :param events: The events to send.
+    """
+
+    _pad_send_all(pad_get(index)[0], events)
