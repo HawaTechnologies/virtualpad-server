@@ -256,3 +256,4 @@ def server_loop(server: socket.socket, device_name: str, admin_writer: IO, timeo
         # Tears down the pads in the server.
         pads_teardown()
         server_wait.clear()
+        send_to_fifo({"type": "notification", "command": "pads_release_all"}, admin_writer)
