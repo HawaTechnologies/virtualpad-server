@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python
 from virtualpad.server import main
 from virtualpad.admin import using_admin_channel
 
