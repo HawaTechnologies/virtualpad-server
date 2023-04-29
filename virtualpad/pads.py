@@ -99,19 +99,6 @@ def _regenerate_password():
     return ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(4))
 
 
-def pad_auth(index: int, password: str):
-    """
-    Attempts to authenticate a password. Returns whether
-    it succeeded or not.
-    :param index: The pad index.
-    :param password: The password to attempt.
-    :return: Whether it succeeded or not.
-    """
-
-    entry = POOL[index]
-    return entry and entry[2] == password
-
-
 def pad_get(index: int):
     """
     Gets a gamepad at an index.
