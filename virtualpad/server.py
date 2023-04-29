@@ -50,8 +50,22 @@ def _process_events(pad_index: int, length: int, buffer: bytearray, device: uinp
 
 
 def pad_heartbeat(remote: socket.socket, index: int, device: uinput.Device):
+    """
+    A heartbeat loop, per pad, to detect whether it is alive or not.
+    :param remote: The involved socket.
+    :param index: The pad index.
+    :param device: The device.
+    """
     # TODO implement this!
-    pass
+
+
+def pad_admin(admin_writer: IO, admin_reader: IO):
+    """
+    A loop to read for admin commands and write responses.
+    :param admin_writer: Handler to send responses to the admin.
+    :param admin_reader: Handler to receive commands from the admin.
+    """
+    # TODO implement this.
 
 
 def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
@@ -119,24 +133,25 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
         remote.close()
 
 
-def server_loop(server: socket.socket, device_name: str):
+def server_loop(server: socket.socket, device_name: str, admin_writer: IO):
     """
     Listens to ths socket perpetually, or until it is closed.
     Each connection is attempted, authenticated, and then its
     loop starts.
+    :param admin_writer: Handler used to send notifications
+        and responses to the admin.
     :param server: The main server socket.
     :param device_name: The base device name for the pads.
     """
 
-    with using_admin_channel() as (fw, fr):
-        while True:
-            try:
-                remote, address = server.accept()
-                threading.Thread(target=pad_loop, args=(remote, device_name, fw)).start()
-            except OSError as e:
-                # Accept errors of type EBADF mean that the server
-                # is closed. Any other exception should be logged.
-                if e.errno != errno.EBADF:
-                    raise
-                else:
-                    break
+    while True:
+        try:
+            remote, address = server.accept()
+            threading.Thread(target=pad_loop, args=(remote, device_name, admin_writer)).start()
+        except OSError as e:
+            # Accept errors of type EBADF mean that the server
+            # is closed. Any other exception should be logged.
+            if e.errno != errno.EBADF:
+                raise
+            else:
+                break
