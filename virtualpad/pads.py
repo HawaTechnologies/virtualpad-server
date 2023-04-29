@@ -3,6 +3,9 @@ from typing import List, Optional, Tuple
 import uinput
 
 
+MAX_PAD_COUNT = 8
+
+
 def make_pad(name: str):
     """
     Builds a pad device.
@@ -28,7 +31,7 @@ def make_pad(name: str):
     )
 
 
-POOL: List[Tuple[Optional[uinput.Device], Optional[str], Optional[str]]] = [(None, None, '')] * 8
+POOL: List[Tuple[Optional[uinput.Device], Optional[str], Optional[str]]] = [(None, None, '')] * MAX_PAD_COUNT
 
 
 # Buttons use 0, 1.
@@ -91,7 +94,7 @@ class PadMismatch(PadException):
 
 
 def _check_index(index):
-    if not (0 <= index < 8):
+    if not (0 <= index < MAX_PAD_COUNT):
         raise PadIndexOutOfRange(index)
 
 
@@ -177,5 +180,5 @@ def pad_send_all(index: int, events: List[Tuple[int, int]], expect: Optional[uin
 
 
 # Initialize the pool.
-for index in range(8):
+for index in range(MAX_PAD_COUNT):
     pad_clear(index)
