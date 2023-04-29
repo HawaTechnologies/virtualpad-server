@@ -5,9 +5,9 @@ from typing.io import IO
 
 
 # These files are created for the target user.
-USER = os.getenv('USER', 'pi')
-_FIFO_SERVER_TO_ADMIN = f"/home/{USER}/.config/Hawa/run/server-to-admin"
-_FIFO_ADMIN_TO_SERVER = f"/home/{USER}/.config/Hawa/run/admin-to-server"
+START_USER = os.getenv('USER') or os.getenv('USERNAME')
+_FIFO_SERVER_TO_ADMIN = f"/home/{START_USER}/.config/Hawa/run/server-to-admin"
+_FIFO_ADMIN_TO_SERVER = f"/home/{START_USER}/.config/Hawa/run/admin-to-server"
 
 
 def _clear_channel_fifo_files():
@@ -33,7 +33,7 @@ def _create_channel_fifo_files():
 
     os.mkfifo(_FIFO_SERVER_TO_ADMIN, 0x600)
     os.mkfifo(_FIFO_ADMIN_TO_SERVER, 0x600)
-    os.system(f"chown {USER}:{USER} /home/pi/.config/Hawa/run/*")
+    os.system(f"chown {START_USER}:{START_USER} /home/pi/.config/Hawa/run/*")
     return open(_FIFO_SERVER_TO_ADMIN, 'w'), open(_FIFO_ADMIN_TO_SERVER, 'r')
 
 
