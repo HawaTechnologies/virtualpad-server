@@ -1,5 +1,7 @@
-import contextlib
 import os
+import json
+import contextlib
+from typing.io import IO
 
 
 _FIFO_SERVER_TO_ADMIN = os.path.expanduser("~/.config/Hawa/run/server-to-admin")
@@ -64,3 +66,23 @@ def using_admin_channel():
 
         # Again: clears the channels after usage.
         _clear_channel_fifo_files()
+
+
+def send_to_fifo(obj, fp: IO):
+    """
+    Send something to a fifo.
+    :param obj: The object to send.
+    :param fp: The fifo to send the object to.
+    """
+
+    fp.write(f"{json.dumps(obj)}\n")
+
+
+def read_from_file(fp: IO):
+    """
+    Read something from a fifo.
+    :param fp: The fifo to read the object from.
+    :return: The read object.
+    """
+
+    return json.loads(fp.readline().strip())
