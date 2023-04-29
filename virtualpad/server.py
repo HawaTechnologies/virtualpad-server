@@ -1,12 +1,12 @@
 import time
 import errno
+import uinput
 import socket
 import threading
-import uinput
+from typing import Callable
 from typing.io import IO
-from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set, pads_teardown, MAX_PAD_COUNT
-from .admin import send_to_fifo
-
+from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set, pads_teardown, MAX_PAD_COUNT, POOL
+from .admin import send_to_fifo, read_from_fifo
 
 # Buffer size.
 _BUFLEN = 32
@@ -75,7 +75,7 @@ def pad_heartbeat(remote: socket.socket, index: int, admin_writer: IO, device: u
                 _HEARTBEATS[index] = False
             else:
                 remote.close()
-                send_to_fifo({"type": "notification", "command": "pad_timeout", "index": index}, admin_writer)
+                send_to_fifo({"type": "notification", "command": "pad:timeout", "index": index}, admin_writer)
                 break
     except:
         pass
@@ -119,7 +119,7 @@ def _pad_init(remote: socket.socket, index: int, device_name: str, nickname: str
     """
 
     pad_set(index, device_name, nickname)
-    send_to_fifo({"type": "notification", "command": "pad_set", "nickname": nickname, "index": index},
+    send_to_fifo({"type": "notification", "command": "pad:set", "nickname": nickname, "index": index},
                  admin_writer)
     entry = pad_get(index)
     device, nickname, _ = entry
@@ -148,16 +148,6 @@ def _pad_read_command(remote: socket.socket, index: int, buffer: bytearray, devi
         _HEARTBEATS[index] = True
         pass
     # We're not managing other client commands so far.
-
-
-def pad_admin(admin_writer: IO, admin_reader: IO):
-    """
-    A loop to read for admin commands and write responses.
-    :param admin_writer: Handler to send responses to the admin.
-    :param admin_reader: Handler to receive commands from the admin.
-    """
-
-    # TODO implement this.
 
 
 def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
@@ -195,7 +185,7 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
         # signal triggered by the user itself to de-auth or
         # by any explicit request (from client or from admin
         # panel) to disconnect.
-        send_to_fifo({"type": "notification", "command": "pad_release", "index": e.args[1]}, admin_writer)
+        send_to_fifo({"type": "notification", "command": "pad:release", "index": e.args[1]}, admin_writer)
         remote.send(TERMINATED)
     except Exception as e:
         # Something weird happened. Clear the pad just in case.
@@ -203,7 +193,7 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
             pad_clear(index, expect=device)
         except:
             pass
-        send_to_fifo({"type": "notification", "command": "pad_killed", "index": e.args[1]}, admin_writer)
+        send_to_fifo({"type": "notification", "command": "pad:killed", "index": e.args[1]}, admin_writer)
     finally:
         remote.close()
 
@@ -219,11 +209,14 @@ def is_server_running():
     return server_wait.is_set()
 
 
-def server_loop(server: socket.socket, device_name: str, admin_writer: IO, timeout: int = 10):
+def server_loop(server: socket.socket, device_name: str, admin_writer: IO,
+                close_callback: Callable[[], None], timeout: int = 10):
     """
     Listens to ths socket perpetually, or until it is closed.
     Each connection is attempted, authenticated, and then its
     loop starts.
+    :param close_callback: A callback for when this server gets
+        closed.
     :param timeout: The timeout, in seconds, to wait.
     :param admin_writer: Handler used to send notifications
         and responses to the admin.
@@ -232,15 +225,19 @@ def server_loop(server: socket.socket, device_name: str, admin_writer: IO, timeo
     """
 
     try:
-        send_to_fifo({"type": "notification", "command": "server_waiting"}, admin_writer)
+        send_to_fifo({"type": "notification", "command": "server:waiting"}, admin_writer)
         server_wait.wait(timeout)
     except Exception:
-        send_to_fifo({"type": "notification", "command": "server_launching"}, admin_writer)
+        send_to_fifo({"type": "notification", "command": "server:wait-error"}, admin_writer)
+        server.close()
+        close_callback()
         raise
 
     try:
-        send_to_fifo({"type": "notification", "command": "server_launching"}, admin_writer)
+        send_to_fifo({"type": "notification", "command": "server:launching"}, admin_writer)
         server_wait.set()
+        # Tears down the pads in the server.
+        pads_teardown()
         while True:
             try:
                 remote, address = server.accept()
@@ -253,7 +250,69 @@ def server_loop(server: socket.socket, device_name: str, admin_writer: IO, timeo
                 else:
                     break
     finally:
-        # Tears down the pads in the server.
+        # Tears down the pads in the server, again.
         pads_teardown()
         server_wait.clear()
-        send_to_fifo({"type": "notification", "command": "pads_release_all"}, admin_writer)
+        # Close the server, if any.
+        try:
+            server.close()
+        except:
+            pass
+        close_callback()
+        send_to_fifo({"type": "notification", "command": "server:closed"}, admin_writer)
+
+
+def main(admin_writer: IO, admin_reader: IO, device_name: str, timeout: int = 10):
+    """
+    A loop to read for admin commands and write responses.
+    :param device_name: The base name  for the devices.
+    :param timeout: The timeout to use for the socket.
+    :param admin_writer: Handler to send responses to the admin.
+    :param admin_reader: Handler to receive commands from the admin.
+    """
+
+    # Supported admin commands:
+    # - Start server (command="server:start").
+    # - Stop server (command="server:stop").
+    # - Tell whether server is running (command="server:is-running").
+    # - Clear or re-generate pad (command="pad:clear").
+    # - Clear all pads (command="pad:clear-all").
+    # - List all the pads (in use or not; command="pad:status").
+    server = None
+
+    def close_callback():
+        nonlocal server
+        server = None
+
+    while True:
+        payload = read_from_fifo(admin_reader)
+        command = payload.get("command")
+        if command == "server:start":
+            if not server:
+                server = socket.create_server(("0.0.0.0", 2357), family=socket.AF_INET, backlog=8)
+                threading.Thread(target=server_loop, args=(server, device_name, admin_writer,
+                                                           close_callback, timeout)).start()
+            else:
+                send_to_fifo({"type": "notification", "command": "server:already-running"}, admin_writer)
+        elif command == "server:stop":
+            if server:
+                server.close()
+            else:
+                send_to_fifo({"type": "notification", "command": "server:not-running"}, admin_writer)
+        elif command == "server:is-running":
+            send_to_fifo({"type": "notification", "command": "server:is-running", "value": server is None},
+                         admin_writer)
+        elif command == "pad:clear":
+            index = payload.get("index")
+            if index in range(8):
+                pad_clear(index)
+                send_to_fifo({"type": "notification", "command": "pad:cleared", "index": index}, admin_writer)
+            else:
+                send_to_fifo({"type": "notification", "command": "pad:invalid-index", "index": index}, admin_writer)
+        elif command == "pad:clear-all":
+            pads_teardown()
+            send_to_fifo({"type": "notification", "command": "pad:all-cleared"}, admin_writer)
+        elif command == "pad:status":
+            send_to_fifo({"type": "notification", "command": "pad:status", "value": [
+                entry[1:] for entry in POOL
+            ]}, admin_writer)
