@@ -1,3 +1,4 @@
+import random
 from typing import List, Optional, Tuple
 import uinput
 
@@ -27,7 +28,7 @@ def make_pad(name: str):
     )
 
 
-POOL: List[Optional[Tuple[uinput.Device, str]]] = [None] * 8
+POOL: List[Optional[Tuple[uinput.Device, str, str]]] = [None] * 8
 
 
 # Buttons use 0, 1.
@@ -94,6 +95,10 @@ def _check_index(index):
         raise PadIndexOutOfRange(index)
 
 
+def _regenerate_password():
+    return ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(4))
+
+
 def pad_get(index: int):
     """
     Gets a gamepad at an index.
@@ -102,7 +107,7 @@ def pad_get(index: int):
     """
 
     _check_index(index)
-    return POOL[index] or (None, None)
+    return POOL[index] or (None, None, None)
 
 
 def pad_set(index: int, device_name: str, nickname: str):
@@ -117,7 +122,7 @@ def pad_set(index: int, device_name: str, nickname: str):
     current = POOL[index]
     if current:
         raise PadInUse(index, current)
-    POOL[index] = make_pad(f"{device_name}-{index}"), nickname
+    POOL[index] = make_pad(f"{device_name}-{index}"), nickname, _regenerate_password()
 
 
 def pad_clear(index: int):
