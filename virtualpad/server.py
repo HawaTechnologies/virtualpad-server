@@ -1,9 +1,9 @@
 import errno
 import socket
 import threading
-
 import uinput
 from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set
+
 
 _BUFLEN = 32
 # Client commands:
