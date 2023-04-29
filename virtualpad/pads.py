@@ -85,6 +85,10 @@ class PadNotInUse(PadException):
     code = "pad_not_in_use"
 
 
+class PadMismatch(PadException):
+    code = "pad_mismatch"
+
+
 def _check_index(index):
     if not (0 <= index < 8):
         raise PadIndexOutOfRange(index)
@@ -154,11 +158,14 @@ def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]]):
     device.syn()
 
 
-def pad_send_all(index: int, events: List[Tuple[int, int]]):
+def pad_send_all(index: int, events: List[Tuple[int, int]], expect: Optional[uinput.Device] = None):
     """
     Sends all the events to the device, atomically.
     :param index: The index of the device to send the events to.
     :param events: The events to send.
+    :param expect: If not None, what device to expect.
     """
 
+    if expect is not None and POOL[index][0] is not expect:
+        raise PadMismatch()
     _pad_send_all(pad_get(index)[0], events)
