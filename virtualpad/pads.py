@@ -172,7 +172,7 @@ def pad_send_all(index: int, events: List[Tuple[int, int]], expect: Optional[uin
     """
 
     if expect is not None and POOL[index][0] is not expect:
-        raise PadMismatch()
+        raise PadMismatch(index)
     _pad_send_all(POOL[index][0], events)
 
 
