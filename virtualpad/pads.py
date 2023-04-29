@@ -28,7 +28,7 @@ def make_pad(name: str):
     )
 
 
-POOL: List[Optional[Tuple[uinput.Device, str, str]]] = [None] * 8
+POOL: List[Tuple[Optional[uinput.Device], Optional[str], Optional[str]]] = [(None, None, '')] * 8
 
 
 # Buttons use 0, 1.
@@ -122,7 +122,7 @@ def pad_set(index: int, device_name: str, nickname: str):
     current = POOL[index]
     if current:
         raise PadInUse(index, current)
-    POOL[index] = make_pad(f"{device_name}-{index}"), nickname, _regenerate_password()
+    POOL[index] = make_pad(f"{device_name}-{index}"), nickname, ''
 
 
 def pad_clear(index: int):
@@ -135,7 +135,7 @@ def pad_clear(index: int):
     current = POOL[index]
     if not current:
         raise PadNotInUse(index)
-    POOL[index] = None
+    POOL[index] = (None, None, _regenerate_password())
 
 
 def pads_teardown():
@@ -173,4 +173,9 @@ def pad_send_all(index: int, events: List[Tuple[int, int]], expect: Optional[uin
 
     if expect is not None and POOL[index][0] is not expect:
         raise PadMismatch()
-    _pad_send_all(pad_get(index)[0], events)
+    _pad_send_all(POOL[index][0], events)
+
+
+# Initialize the pool.
+for index in range(8):
+    pad_clear(index)
