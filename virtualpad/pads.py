@@ -3,11 +3,10 @@ from typing import List, Optional, Tuple
 import uinput
 
 
-def make_pad(name: str, deadzone: float = 0.1):
+def make_pad(name: str):
     """
     Builds a pad device.
     :param name: The name to use.
-    :param deadzone: The axis' dead zone.
     """
 
     events = (
@@ -21,8 +20,8 @@ def make_pad(name: str, deadzone: float = 0.1):
         uinput.BTN_TR2,  # R2
         uinput.BTN_SELECT,
         uinput.BTN_START,
-        uinput.ABS_X + (-1., 1., 0., max(0., min(1., deadzone))),
-        uinput.ABS_Y + (-1., 1., 0., deadzone)
+        uinput.ABS_X + (-1, 1, 0, 0),
+        uinput.ABS_Y + (-1, 1, 0, 0)
     )
     return uinput.Device(
         events, name=name
@@ -60,7 +59,7 @@ def _check_index(index):
         raise PadIndexOutOfRange(index)
 
 
-def pool_get_pad(index: int):
+def pad_get(index: int):
     """
     Gets a gamepad at an index.
     :param index: The index of the gamepad to get.
@@ -71,23 +70,22 @@ def pool_get_pad(index: int):
     return POOL[index] or (None, None)
 
 
-def pool_set(index: int, device_name: str, nickname: str, deadzone: float = 0.1):
+def pad_set(index: int, device_name: str, nickname: str):
     """
     Sets one of the pool elements to a new device.
     :param index: The device index to start.
     :param device_name: The device name (internal to the OS).
     :param nickname: The associated nickname.
-    :param deadzone: The device's dead zone.
     """
 
     _check_index(index)
     current = POOL[index]
     if current:
         raise PadInUse(index, current)
-    POOL[index] = make_pad(device_name, deadzone=deadzone), nickname
+    POOL[index] = make_pad(f"{device_name}-{index}"), nickname
 
 
-def pool_clear(index: int):
+def pad_clear(index: int):
     """
     Clears one of the pool elements.
     :param index: The index to clear.
@@ -100,7 +98,7 @@ def pool_clear(index: int):
     POOL[index] = None
 
 
-def pool_teardown():
+def pads_teardown():
     """
     Clears all the pool elements.
     """
