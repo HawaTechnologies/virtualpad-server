@@ -78,7 +78,7 @@ def send_to_fifo(obj, fp: IO):
     fp.write(f"{json.dumps(obj)}\n")
 
 
-def read_from_file(fp: IO):
+def read_from_fifo(fp: IO):
     """
     Read something from a fifo.
     :param fp: The fifo to read the object from.
