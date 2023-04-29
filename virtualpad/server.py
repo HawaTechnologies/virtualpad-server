@@ -1,11 +1,10 @@
-import json
 import errno
 import socket
 import threading
 import uinput
 from typing.io import IO
 from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set, pads_teardown
-from .admin import using_admin_channel
+from .admin import send_to_fifo
 
 
 _BUFLEN = 32
@@ -102,7 +101,7 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
         remote.send(LOGIN_SUCCESS)
         # Initializing the pad.
         pad_set(index, device_name, nickname)
-        json.dump({"command": "pad_set", "nickname": nickname, "index": index}, admin_writer)
+        send_to_fifo({"command": "pad_set", "nickname": nickname, "index": index}, admin_writer)
         entry = pad_get(index)
         device, nickname, _ = entry
         threading.Thread(target=pad_heartbeat, args=(remote, index, device)).start()
@@ -124,11 +123,11 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
         # signal triggered by the user itself to de-auth or
         # by any explicit request (from client or from admin
         # panel) to disconnect.
-        json.dump({"command": "pad_release", "index": e.args[1]}, admin_writer)
+        send_to_fifo({"command": "pad_release", "index": e.args[1]}, admin_writer)
         remote.send(TERMINATED)
     except Exception as e:
         # The pad connection was killed.
-        json.dump({"command": "pad_killed", "index": e.args[1]}, admin_writer)
+        send_to_fifo({"command": "pad_killed", "index": e.args[1]}, admin_writer)
     finally:
         remote.close()
 
@@ -144,20 +143,28 @@ def is_server_running():
     return server_wait.is_set()
 
 
-def server_loop(server: socket.socket, device_name: str, admin_writer: IO):
+def server_loop(server: socket.socket, device_name: str, admin_writer: IO, timeout: int = 10):
     """
     Listens to ths socket perpetually, or until it is closed.
     Each connection is attempted, authenticated, and then its
     loop starts.
+    :param timeout: The timeout, in seconds, to wait.
     :param admin_writer: Handler used to send notifications
         and responses to the admin.
     :param server: The main server socket.
     :param device_name: The base device name for the pads.
     """
 
-    server_wait.wait()
-    server_wait.set()
     try:
+        send_to_fifo({"type": "notification", "command": "server_waiting"}, admin_writer)
+        server_wait.wait(timeout)
+    except Exception:
+        send_to_fifo({"type": "notification", "command": "server_launching"}, admin_writer)
+        raise
+
+    try:
+        send_to_fifo({"type": "notification", "command": "server_launching"}, admin_writer)
+        server_wait.set()
         while True:
             try:
                 remote, address = server.accept()
