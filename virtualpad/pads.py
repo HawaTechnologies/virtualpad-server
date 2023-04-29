@@ -128,9 +128,10 @@ def pad_set(index: int, device_name: str, nickname: str):
     POOL[index] = make_pad(f"{device_name}-{index}"), nickname, ''
 
 
-def pad_clear(index: int):
+def pad_clear(index: int, expect: Optional[uinput.Device] = None):
     """
     Clears one of the pool elements.
+    :param expect: What device to expect, if any.
     :param index: The index to clear.
     """
 
@@ -138,7 +139,8 @@ def pad_clear(index: int):
     current = POOL[index]
     if not current:
         raise PadNotInUse(index)
-    POOL[index] = (None, None, _regenerate_password())
+    if not expect or current[0] == expect:
+        POOL[index] = (None, None, _regenerate_password())
 
 
 def pads_teardown():

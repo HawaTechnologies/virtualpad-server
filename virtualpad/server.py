@@ -81,6 +81,75 @@ def pad_heartbeat(remote: socket.socket, index: int, admin_writer: IO, device: u
         pass
 
 
+def _pad_auth(remote: socket.socket, buffer: bytearray):
+    """
+    Attempts an authentication.
+    :returns: A tuple (False, None, None) or (True, index, nickname) if success.
+    """
+
+    # Getting the first data.
+    remote.recv_into(buffer, 21)
+    index = buffer[0]
+    attempted = bytes(buffer[1:5]).decode("utf-8")
+    nickname = bytes(buffer[5:21]).decode("utf-8")
+    # Authenticating.
+    if index >= MAX_PAD_COUNT:
+        remote.send(PAD_INVALID)
+        return False, None, None
+    entry = pad_get(index)
+    if entry[0]:
+        remote.send(PAD_BUSY)
+        return False, None, None
+    if attempted != entry[2]:
+        remote.send(LOGIN_FAILURE)
+        return False, None, None
+    remote.send(LOGIN_SUCCESS)
+    return True, index, nickname
+
+
+def _pad_init(remote: socket.socket, index: int, device_name: str, nickname: str, admin_writer: IO):
+    """
+    Inits the gamepad.
+    :param remote: The socket to work with.
+    :param index: The pad index.
+    :param device_name: The device name.
+    :param nickname: The nickname to use.
+    :param admin_writer: The writer to send notifications to.
+    :returns: The proper device to work with.
+    """
+
+    pad_set(index, device_name, nickname)
+    send_to_fifo({"type": "notification", "command": "pad_set", "nickname": nickname, "index": index},
+                 admin_writer)
+    entry = pad_get(index)
+    device, nickname, _ = entry
+    threading.Thread(target=pad_heartbeat, args=(remote, index, admin_writer)).start()
+    return device
+
+
+def _pad_read_command(remote: socket.socket, index: int, buffer: bytearray, device: uinput.Device):
+    """
+    Reads and processes an incoming command.
+    :param remote: The socket to work with.
+    :param index: The index.
+    :param buffer: The buffer.
+    :param device: The device to forward events to.
+    """
+
+    remote.recv_into(buffer, 1)
+    length = buffer[0]
+    if length < _BUFLEN:
+        received_length = remote.recv_into(buffer, length)
+        _process_events(index, received_length, buffer, device)
+    elif length == CLOSE_CONNECTION:
+        pad_clear(index)
+        return
+    elif length == PING:
+        _HEARTBEATS[index] = True
+        pass
+    # We're not managing other client commands so far.
+
+
 def pad_admin(admin_writer: IO, admin_reader: IO):
     """
     A loop to read for admin commands and write responses.
@@ -105,48 +174,21 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
     """
 
     buffer = bytearray(_BUFLEN)
+    index = None
+    device = None
     try:
         # Giving some timeout for operations.
         remote.settimeout(3)
-        # Getting the first data.
-        remote.recv_into(buffer, 21)
-        index = buffer[0]
-        attempted = bytes(buffer[1:5]).decode("utf-8")
-        nickname = bytes(buffer[5:21]).decode("utf-8")
         # Authenticating.
-        if index >= MAX_PAD_COUNT:
-            remote.send(PAD_INVALID)
+        success, index, nickname = _pad_auth(remote, buffer)
+        if not success:
             return
-        entry = pad_get(index)
-        if entry[0]:
-            remote.send(PAD_BUSY)
-            return
-        if attempted != entry[2]:
-            remote.send(LOGIN_FAILURE)
-            return
-        remote.send(LOGIN_SUCCESS)
         # Initializing the pad.
-        pad_set(index, device_name, nickname)
-        send_to_fifo({"type": "notification", "command": "pad_set", "nickname": nickname, "index": index},
-                     admin_writer)
-        entry = pad_get(index)
-        device, nickname, _ = entry
-        threading.Thread(target=pad_heartbeat, args=(remote, index, admin_writer)).start()
+        device = _pad_init(remote, index, device_name, nickname, admin_writer)
         # Finally, the loop to receive messages.
         while True:
             # Get the received contents.
-            remote.recv_into(buffer, 1)
-            length = buffer[0]
-            if length < _BUFLEN:
-                received_length = remote.recv_into(buffer, length)
-                _process_events(index, received_length, buffer, device)
-            elif length == CLOSE_CONNECTION:
-                pad_clear(index)
-                return
-            elif length == PING:
-                _HEARTBEATS[index] = True
-                pass
-            # We're not managing other client commands so far.
+            _pad_read_command(remote, index, buffer, device)
     except PadMismatch as e:
         # Forgive this one. This is expected. Other exceptions
         # will bubble and be logged, but this is a standard
@@ -156,7 +198,11 @@ def pad_loop(remote: socket.socket, device_name: str, admin_writer: IO):
         send_to_fifo({"type": "notification", "command": "pad_release", "index": e.args[1]}, admin_writer)
         remote.send(TERMINATED)
     except Exception as e:
-        # The pad connection was killed.
+        # Something weird happened. Clear the pad just in case.
+        try:
+            pad_clear(index, expect=device)
+        except:
+            pass
         send_to_fifo({"type": "notification", "command": "pad_killed", "index": e.args[1]}, admin_writer)
     finally:
         remote.close()
