@@ -300,7 +300,7 @@ def main(admin_writer: IO, admin_reader: IO, device_name: str, timeout: int = 10
             else:
                 send_to_fifo({"type": "notification", "command": "server:not-running"}, admin_writer)
         elif command == "server:is-running":
-            send_to_fifo({"type": "notification", "command": "server:is-running", "value": server is None},
+            send_to_fifo({"type": "notification", "command": "server:is-running", "value": server is not None},
                          admin_writer)
         elif command == "pad:clear":
             index = payload.get("index")
