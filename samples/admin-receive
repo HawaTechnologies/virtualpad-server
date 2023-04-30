@@ -1,0 +1,20 @@
+#!/usr/bin/env python
+import os
+import logging
+
+
+logging.basicConfig()
+LOGGER = logging.getLogger("admin-send")
+START_USER = os.getenv('FOR_USER') or os.getenv('USER')
+_FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
+_FIFO_SERVER_TO_ADMIN = f"{_FIFO_PATH}/server-to-admin"
+
+
+def main():
+    with open(_FIFO_SERVER_TO_ADMIN, 'r') as f:
+        while True:
+            LOGGER.info(f"Received: {f.readline()}")
+
+
+if __name__ == "__main__":
+    main()
