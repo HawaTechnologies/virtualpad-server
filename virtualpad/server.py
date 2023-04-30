@@ -1,3 +1,4 @@
+import logging
 import time
 import errno
 import uinput
@@ -7,6 +8,11 @@ from typing import Callable
 from typing.io import IO
 from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set, pads_teardown, MAX_PAD_COUNT, POOL
 from .admin import send_to_fifo, read_from_fifo
+
+
+# The logger goes here.
+LOGGER = logging.getLogger("virtualpad.server")
+LOGGER.setLevel(logging.INFO)
 
 # Buffer size.
 _BUFLEN = 32
@@ -285,6 +291,7 @@ def main(admin_writer: IO, admin_reader: IO, device_name: str, timeout: int = 10
         server = None
 
     while True:
+        LOGGER.info("Waiting for the next admin command...")
         payload = read_from_fifo(admin_reader)
         command = payload.get("command")
         if command == "server:start":

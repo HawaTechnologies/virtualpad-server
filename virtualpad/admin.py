@@ -1,10 +1,13 @@
 import os
 import json
+import logging
 import contextlib
 from typing.io import IO
 
 
 # These files are created for the target user.
+LOGGER = logging.getLogger("virtualpad.admin")
+LOGGER.setLevel(logging.INFO)
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
 _FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
 _FIFO_SERVER_TO_ADMIN = f"{_FIFO_PATH}/server-to-admin"
@@ -36,7 +39,11 @@ def _create_channel_fifo_files():
     os.mkfifo(_FIFO_SERVER_TO_ADMIN, 0o600)
     os.mkfifo(_FIFO_ADMIN_TO_SERVER, 0o600)
     os.system(f"chown {START_USER}:{START_USER} /home/{START_USER}/.config/Hawa/run/*")
-    return open(_FIFO_SERVER_TO_ADMIN, 'w'), open(_FIFO_ADMIN_TO_SERVER, 'r')
+    os.system(f"ls -la /home/{START_USER}/.config/Hawa/run/*")
+    LOGGER.info("Channel creation and initialization will block until a receiver is ready")
+    fw = open(_FIFO_SERVER_TO_ADMIN, 'w')
+    fr = open(_FIFO_ADMIN_TO_SERVER, 'r')
+    return fw, fr
 
 
 @contextlib.contextmanager
@@ -80,7 +87,10 @@ def send_to_fifo(obj, fp: IO):
     :param fp: The fifo to send the object to.
     """
 
-    fp.write(f"{json.dumps(obj)}\n")
+    line = json.dumps(obj)
+    LOGGER.info(f"Sent: {line}")
+    fp.write(f"{line}\n")
+    fp.flush()
 
 
 def read_from_fifo(fp: IO):
@@ -90,4 +100,9 @@ def read_from_fifo(fp: IO):
     :return: The read object.
     """
 
-    return json.loads(fp.readline().strip())
+    while True:
+        line = fp.readline().strip()
+        if line:
+            break
+    LOGGER.info(f"Received: {line}")
+    return json.loads(line)
