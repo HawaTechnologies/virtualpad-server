@@ -5,15 +5,19 @@ import logging
 
 logging.basicConfig()
 LOGGER = logging.getLogger("admin-send")
+LOGGER.setLevel(logging.INFO)
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
 _FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
 _FIFO_SERVER_TO_ADMIN = f"{_FIFO_PATH}/server-to-admin"
 
 
 def main():
+    LOGGER.info("Starting receiver loop")
     with open(_FIFO_SERVER_TO_ADMIN, 'r') as f:
         while True:
-            LOGGER.info(f"Received: {f.readline()}")
+            line = f.readline().strip()
+            if line:
+                LOGGER.info(f">>> Received: {line}")
 
 
 if __name__ == "__main__":
