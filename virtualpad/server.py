@@ -25,10 +25,10 @@ CLOSE_CONNECTION = _BUFLEN
 PING = _BUFLEN + 1
 
 # Server notifications:
-PAD_INVALID = bytes([0])
-PAD_BUSY = bytes([1])
-LOGIN_SUCCESS = bytes([2])
-LOGIN_FAILURE = bytes([3])
+LOGIN_SUCCESS = bytes([0])
+LOGIN_FAILURE = bytes([1])
+PAD_INVALID = bytes([2])
+PAD_BUSY = bytes([3])
 TERMINATED = bytes([4])
 
 
