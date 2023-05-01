@@ -1,4 +1,5 @@
 import os
+import stat
 import json
 import logging
 import contextlib
@@ -30,18 +31,34 @@ def _clear_channel_fifo_files():
         pass
 
 
+def _create_if_not_fifo(file_path):
+    """
+    [re-]Creates a file if it is not a unix FIFO.
+    :param file_path: The path.
+    """
+
+    if os.path.exists(file_path):
+        file_stat = os.stat(file_path)
+        if stat.S_ISFIFO(file_stat.st_mode):
+            return
+        else:
+            os.unlink(file_path)
+    os.mkfifo(file_path, 0o600)
+
+
 def _create_channel_fifo_files():
     """
     Prepares the pipes.
     """
 
     os.makedirs(_FIFO_PATH, exist_ok=True)
-    os.mkfifo(_FIFO_SERVER_TO_ADMIN, 0o600)
-    os.mkfifo(_FIFO_ADMIN_TO_SERVER, 0o600)
+    _create_if_not_fifo(_FIFO_SERVER_TO_ADMIN)
+    _create_if_not_fifo(_FIFO_ADMIN_TO_SERVER)
     os.system(f"chown {START_USER}:{START_USER} /home/{START_USER}/.config/Hawa/run/*")
     os.system(f"ls -la /home/{START_USER}/.config/Hawa/run/*")
-    LOGGER.info("Channel creation and initialization will block until a receiver is ready")
+    LOGGER.info("Opening write channel (waiting until a receiver is ready)")
     fw = open(_FIFO_SERVER_TO_ADMIN, 'w')
+    LOGGER.info("Opening read channel (waiting until a sender is ready)")
     fr = open(_FIFO_ADMIN_TO_SERVER, 'r')
     return fw, fr
 
@@ -75,9 +92,6 @@ def using_admin_channel():
             from_admin.close()
         except:
             pass
-
-        # Again: clears the channels after usage.
-        _clear_channel_fifo_files()
 
 
 def send_to_fifo(obj, fp: IO):
