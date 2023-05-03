@@ -1,98 +1,66 @@
 import os
 import queue
-import stat
 import json
 import logging
 import contextlib
-from typing.io import IO
+from typing import Callable, Any
 from .broadcast import launch_broadcast_server
+from .commands import launch_commands_server
 
 
-# These files are created for the target user.
 LOGGER = logging.getLogger("virtualpad.admin")
 LOGGER.setLevel(logging.INFO)
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
-_FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
-_FIFO_ADMIN_TO_SERVER = f"{_FIFO_PATH}/admin-to-server"
+ADMIN_SOCKET = f"/home/{START_USER}/.config/Hawa/admin.sock"
 
 
-def _clear_channel_fifo_files():
-    """
-    Destroys the pipes.
-    """
-
-    try:
-        os.unlink(_FIFO_ADMIN_TO_SERVER)
-    except:
-        pass
-
-
-def _create_if_not_fifo(file_path):
-    """
-    [re-]Creates a file if it is not a unix FIFO.
-    :param file_path: The path.
-    """
-
-    if os.path.exists(file_path):
-        file_stat = os.stat(file_path)
-        if stat.S_ISFIFO(file_stat.st_mode):
-            return
-        else:
-            os.unlink(file_path)
-    os.mkfifo(file_path, 0o600)
-
-
-def _create_channel_fifo_files():
+def _create_channels(on_command: Callable[[dict, Callable[[dict], None], queue.Queue], None]):
     """
     Prepares the pipes.
     :returns: The queue of messages to write, the handler
-        to close the notification server, and the handler
-        to read commands.
+        to close the notification server, the command server
+        thread and the handler to read commands.
     """
 
-    os.makedirs(_FIFO_PATH, exist_ok=True)
-    _create_if_not_fifo(_FIFO_ADMIN_TO_SERVER)
-    os.system(f"chown {START_USER}:{START_USER} /home/{START_USER}/.config/Hawa/run/*")
-    os.system(f"ls -la /home/{START_USER}/.config/Hawa/run/*")
-    messages, close = launch_broadcast_server()
-    LOGGER.info("Opening read channel (waiting until a sender is ready)")
-    fr = open(_FIFO_ADMIN_TO_SERVER, 'r')
-    return messages, close, fr
+    messages, broadcaster_close = launch_broadcast_server()
+
+    def _on_command(command: dict, sender: Callable[[dict], None]):
+        on_command(command, sender, messages)
+
+    commands_thread, commands_close = launch_commands_server(ADMIN_SOCKET, _on_command)
+    return messages, broadcaster_close, commands_thread, commands_close
 
 
 @contextlib.contextmanager
-def using_admin_channel():
+def using_admin_channel(on_command: Callable[[dict, Callable[[dict], None]], None]):
     """
     A context manager to have the admin channel ready.
+    :param on_command: The commands handler.
     """
 
-    from_admin = None
-    close = None
+    commands_close = None
+    broadcaster_close = None
 
     try:
-        # Clears the channel fifo files (perhaps they lingered).
-        _clear_channel_fifo_files()
-
-        # Creates the channel fifo files (perhaps again).
-        messages, close, from_admin = _create_channel_fifo_files()
+        messages, broadcaster_close, commands_thread, commands_close = _create_channels(on_command)
 
         # Uses them.
-        yield messages, from_admin
+        yield messages, commands_thread
     finally:
         # Close the notification server.
         try:
-            close()
+            broadcaster_close()
         except:
             pass
 
         # Close from_admin. Forgive any exception.
         try:
-            from_admin.close()
+            commands_close()
         except:
             pass
 
 
-def send_to_fifo(obj, messages: queue.Queue):
+def send_notification(obj, messages: queue.Queue):
     """
     Send something to a fifo.
     :param messages: The queue to send the message to.
@@ -102,18 +70,3 @@ def send_to_fifo(obj, messages: queue.Queue):
     line = json.dumps(obj)
     LOGGER.info(f"Sending: {line.strip()}")
     messages.put(f"{line}\n")
-
-
-def read_from_fifo(fp: IO):
-    """
-    Read something from a fifo.
-    :param fp: The fifo to read the object from.
-    :return: The read object.
-    """
-
-    while True:
-        line = fp.readline().strip()
-        if line:
-            break
-    LOGGER.info(f"Received: {line}")
-    return json.loads(line)

@@ -1,6 +1,5 @@
 import errno
 import logging
-import os
 import queue
 import socket
 import threading
@@ -113,7 +112,6 @@ def launch_broadcast_server():
 
     # Finally, start listening.
     server.listen(8)
-
     lock = threading.Lock()
     entries = OrderedDict()
     Thread(target=_server_accepter, args=(server, entries, lock)).start()
