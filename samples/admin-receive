@@ -5,7 +5,7 @@ import socket
 
 
 logging.basicConfig()
-LOGGER = logging.getLogger("admin-send")
+LOGGER = logging.getLogger("virtualpad-sample-receiver")
 LOGGER.setLevel(logging.INFO)
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
 
