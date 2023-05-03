@@ -6,8 +6,13 @@ import logging
 import argparse
 
 
+"""
+Ensure this file has permissions 0o500 (only user, only read-execute).
+"""
+
+
 logging.basicConfig()
-LOGGER = logging.getLogger("admin-send")
+LOGGER = logging.getLogger("virtualpad-admin")
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
 _FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
 _FIFO_ADMIN_TO_SERVER = f"{_FIFO_PATH}/admin-to-server"

@@ -3,9 +3,15 @@ import logging
 from virtualpad.server import VirtualPadService
 
 
+"""
+Ensure this file has permissions 0o500 (only user, only read-execute).
+Also ensure that this file is run in the context of a boot service.
+"""
+
+
 # The logger goes here.
 logging.basicConfig()
-LOGGER = logging.getLogger("virtualpad")
+LOGGER = logging.getLogger("virtualpad-server")
 LOGGER.setLevel(logging.INFO)
 
 
