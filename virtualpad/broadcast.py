@@ -1,5 +1,6 @@
 import errno
 import logging
+import os
 import queue
 import socket
 import threading
@@ -13,20 +14,28 @@ LOGGER = logging.getLogger("virtualpad.broadcast")
 LOGGER.setLevel(logging.INFO)
 
 
-def _remote_sender(remote: socket.socket, messages: queue.Queue, on_close: Callable[[], None]):
+def _remote_sender(remote: socket.socket, messages: queue.Queue, on_close: Callable[[], None], index: int):
     """
     The loop, running in a thread, for a single socket to send messages.
     :param remote: The socket to use to send the messages.
     :param messages: The messages queue.
     :param on_close: What to do when this thread ends.
+    :param index: The remote index.
     """
 
     try:
+        LOGGER.info(f"Client #{index} :: Starting remote sender loop")
         while True:
-            remote.send(messages.get())
+            LOGGER.info(f"Client #{index} :: Waiting for message")
+            message = messages.get()
+            LOGGER.info(f"Client #{index} :: Sending message")
+            remote.send(message.encode('utf-8'))
     except BrokenPipeError:
         # The socket closed.
-        pass
+        LOGGER.info(f"Client #{index} :: Terminating gracefully")
+    except:
+        LOGGER.error(f"Client #{index} :: Terminating abruptly")
+        LOGGER.exception(f"Client #{index} :: Exception on socket thread!")
     finally:
         on_close()
 
@@ -49,7 +58,9 @@ def _server_accepter(server: socket.socket, entries: OrderedDict, entries_lock: 
 
         def _closer_callback(index):
             def _closer():
+                LOGGER.info(f"Client #{index} :: Closed - Releasing")
                 with entries_lock:
+                    LOGGER.info(f"Client #{index} :: Closed - Cleaning remote entry")
                     entries.pop(index, None)
             return _closer
 
@@ -61,8 +72,8 @@ def _server_accepter(server: socket.socket, entries: OrderedDict, entries_lock: 
                 with entries_lock:
                     entries[next_index] = entry
                 _closer = _closer_callback(next_index)
+                Thread(target=_remote_sender, args=(remote, messages_queue, _closer, next_index)).start()
                 next_index += 1
-                Thread(target=_remote_sender, args=(remote, messages_queue, _closer)).start()
             except OSError as e:
                 # Accept errors of type EBADF mean that the server
                 # is closed. Any other exception should be logged.
@@ -85,20 +96,32 @@ def _msg_broadcaster(messages: queue.Queue, entries: OrderedDict, still_running:
 
     while still_running():
         message = messages.get()
-        print(f"Retrieving message: {message}")
         with entries_lock:
             for _, target_messages in entries.values():
-                print(f"Sending message: {message}")
                 target_messages.put(message)
 
 
-def launch_broadcast_server():
+def launch_broadcast_server(path: str):
     """
     Launches a broadcast server.
     :return: The pair (messages: a queue to send messages, close: a function to invoke to close it).
     """
 
-    server = socket.create_server(("0.0.0.0", 2358), family=socket.AF_INET, backlog=8)
+    # Delete the pre-existing socket, and prepare the directory.
+    if os.path.exists(path):
+        os.remove(path)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    # Start the new socket.
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(path)
+
+    # Set permissions for this socket (only the current user).
+    os.chmod(path, 0o600)
+
+    # Finally, start listening.
+    server.listen(8)
+
     lock = threading.Lock()
     entries = OrderedDict()
     Thread(target=_server_accepter, args=(server, entries, lock)).start()
@@ -117,6 +140,6 @@ def launch_broadcast_server():
         return server is not None
 
     messages = queue.Queue()
-    Thread(target=_msg_broadcaster, args=(messages, entries, is_running, lock))
+    Thread(target=_msg_broadcaster, args=(messages, entries, is_running, lock)).start()
 
     return messages, close
