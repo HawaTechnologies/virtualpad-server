@@ -8,15 +8,13 @@ logging.basicConfig()
 LOGGER = logging.getLogger("admin-send")
 LOGGER.setLevel(logging.INFO)
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
-_SOCKET_PATH = f"/home/{START_USER}/.config/Hawa/sockets"
-_SOCKET_SERVER_TO_ADMIN = f"{_SOCKET_PATH}/server-to-admin"
 
 
 def main():
     LOGGER.info("Starting receiver loop")
     try:
-        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        connection.connect(_SOCKET_SERVER_TO_ADMIN)
+        connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        connection.connect(('127.0.0.1', 2358))
     except:
         LOGGER.exception("Connection error! Is the broadcast server running?")
         return

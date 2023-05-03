@@ -12,8 +12,6 @@ from .broadcast import launch_broadcast_server
 LOGGER = logging.getLogger("virtualpad.admin")
 LOGGER.setLevel(logging.INFO)
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
-_SOCKET_PATH = f"/home/{START_USER}/.config/Hawa/sockets"
-_SOCKET_SERVER_TO_ADMIN = f"{_SOCKET_PATH}/server-to-admin"
 _FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
 _FIFO_ADMIN_TO_SERVER = f"{_FIFO_PATH}/admin-to-server"
 
@@ -56,7 +54,7 @@ def _create_channel_fifo_files():
     _create_if_not_fifo(_FIFO_ADMIN_TO_SERVER)
     os.system(f"chown {START_USER}:{START_USER} /home/{START_USER}/.config/Hawa/run/*")
     os.system(f"ls -la /home/{START_USER}/.config/Hawa/run/*")
-    messages, close = launch_broadcast_server(_SOCKET_SERVER_TO_ADMIN)
+    messages, close = launch_broadcast_server()
     LOGGER.info("Opening read channel (waiting until a sender is ready)")
     fr = open(_FIFO_ADMIN_TO_SERVER, 'r')
     return messages, close, fr

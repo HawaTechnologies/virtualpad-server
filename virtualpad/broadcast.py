@@ -101,23 +101,15 @@ def _msg_broadcaster(messages: queue.Queue, entries: OrderedDict, still_running:
                 target_messages.put(message)
 
 
-def launch_broadcast_server(path: str):
+def launch_broadcast_server():
     """
     Launches a broadcast server.
     :return: The pair (messages: a queue to send messages, close: a function to invoke to close it).
     """
 
-    # Delete the pre-existing socket, and prepare the directory.
-    if os.path.exists(path):
-        os.remove(path)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-
     # Start the new socket.
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(path)
-
-    # Set permissions for this socket (only the current user).
-    os.chmod(path, 0o600)
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('0.0.0.0', 2358))
 
     # Finally, start listening.
     server.listen(8)
