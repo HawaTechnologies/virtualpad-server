@@ -13,8 +13,8 @@ LOGGER.setLevel(logging.INFO)
 if __name__ == "__main__":
     try:
         LOGGER.info("Initializing service")
-        with using_admin_channel() as (admin_writer, admin_reader):
-            main(admin_writer, admin_reader, "Hawa-Virtualpad")
+        with using_admin_channel() as (messages, admin_reader):
+            main(messages, admin_reader, "Hawa-Virtualpad")
     except Exception as e:
         LOGGER.exception("An error occurred!")
     finally:

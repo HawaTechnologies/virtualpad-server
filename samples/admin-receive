@@ -1,23 +1,32 @@
 #!/usr/bin/env python
 import os
 import logging
+import socket
 
 
 logging.basicConfig()
 LOGGER = logging.getLogger("admin-send")
 LOGGER.setLevel(logging.INFO)
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
-_FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
-_FIFO_SERVER_TO_ADMIN = f"{_FIFO_PATH}/server-to-admin"
 
 
 def main():
     LOGGER.info("Starting receiver loop")
-    with open(_FIFO_SERVER_TO_ADMIN, 'r') as f:
+    try:
+        connection = socket.create_connection(("127.0.0.1", 2358))
+    except:
+        LOGGER.exception("Connection error! Is the broadcast server running?")
+        return
+
+    try:
         while True:
-            line = f.readline().strip()
+            line = connection.recv(1024).decode("utf-8")
             if line:
                 LOGGER.info(f">>> Received: {line}")
+    except BrokenPipeError:
+        pass
+    except Exception as e:
+        LOGGER.exception("Error on command reception!")
 
 
 if __name__ == "__main__":
