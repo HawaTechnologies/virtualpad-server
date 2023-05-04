@@ -1,0 +1,198 @@
+#!/usr/bin/env python
+import operator
+import os
+import time
+import socket
+import logging
+import argparse
+from functools import reduce
+from typing import Optional
+
+
+logging.basicConfig()
+LOGGER = logging.getLogger("dumb-pad")
+LOGGER.setLevel(logging.INFO)
+START_USER = os.getenv('FOR_USER') or os.getenv('USER')
+
+
+LOGIN_SUCCESS = 0
+LOGIN_FAILURE = 1
+PAD_INVALID = 2
+PAD_BUSY = 3
+TERMINATED = 4
+
+
+CLOSE_CONNECTION = 32
+PING = 33
+
+
+_NAMES = ["btn_north", "btn_east", "btn_south", "btn_west",
+          "btn_l1", "btn_r1", "btn_l2", "btn_r2",
+          "btn_select", "btn_start", "abs_x", "abs_y"]
+
+
+def _send_and_revert(client: socket.socket, *, ping: bool = True,
+                     btn_north: Optional[int] = None, btn_east: Optional[int] = None,
+                     btn_south: Optional[int] = None, btn_west: Optional[int] = None,
+                     btn_l1: Optional[int] = None, btn_r1: Optional[int] = None,
+                     btn_l2: Optional[int] = None, btn_r2: Optional[int] = None,
+                     btn_select: Optional[int] = None, btn_start: Optional[int] = None,
+                     abs_x: Optional[int] = None, abs_y: Optional[int] = None):
+    """
+    Sends many key/value pairs, waits 1 second, sends
+    corresponding key/0 pairs, waits another second.
+    :param client: The socket to use.
+    :param ping: Whether to send a ping or not.
+    :param btn_north: The optional change for BTN_NORTH value.
+    :param btn_east: The optional change for BTN_EAST value.
+    :param btn_south: The optional change for BTN_SOUTH value.
+    :param btn_west: The optional change for BTN_WEST value.
+    :param btn_l1: The optional change for BTN_L1 value.
+    :param btn_r1: The optional change for BTN_R1 value.
+    :param btn_l2: The optional change for BTN_L2 value.
+    :param btn_r2: The optional change for BTN_R2 value.
+    :param btn_select: The optional change for BTN_SELECT value.
+    :param btn_start: The optional change for BTN_START value.
+    :param abs_x: The optional change for ABS_X value.
+    :param abs_y: The optional change for ABS_Y value.
+    """
+
+    base_entries = list(enumerate([btn_north, btn_east, btn_south, btn_west,
+                                   btn_l1, btn_r1, btn_l2, btn_r2,
+                                   btn_select, btn_start, abs_x, abs_y]))
+    changed_entries = [[i, v] for (i, v) in base_entries if v is not None]
+    changed_entries_names = [[_NAMES[i], v] for (i, v) in base_entries if v is not None]
+    zero_entries = [[i, 0] for [i, _] in changed_entries]
+    n_entries = len(changed_entries)
+    if not n_entries:
+        return
+
+    LOGGER.info(f">>> Sending keys: {', '.join(f'{n}={v}' for n, v in changed_entries_names)}")
+    client.send(bytes([n_entries] + reduce(operator.add, changed_entries, [])))
+    time.sleep(1)
+    LOGGER.info(">>> Reverting keys")
+    client.send(bytes([n_entries] + reduce(operator.add, zero_entries, [])))
+    time.sleep(1)
+    if ping:
+        LOGGER.info(">>> Sending ping")
+        client.send(bytes([PING]))
+
+
+def _send_and_revert_loop(client: socket.socket, *, ping: bool = True):
+    """
+    Performs a series of actions with the pad, and then attempts
+    to send a connection close.
+    :param client: The client to use.
+    :param ping: Whether to use ping or not.
+    """
+
+    for i in range(1, 3):
+        LOGGER.info(f"Iteration #{i}")
+        _send_and_revert(client, ping=ping, abs_y=2)
+        _send_and_revert(client, ping=ping, abs_y=0)
+        _send_and_revert(client, ping=ping, abs_x=1)
+        _send_and_revert(client, ping=ping, abs_x=0)
+        _send_and_revert(client, ping=ping, abs_y=1)
+        _send_and_revert(client, ping=ping, abs_y=0)
+        _send_and_revert(client, ping=ping, abs_x=2)
+        _send_and_revert(client, ping=ping, abs_x=0)
+        _send_and_revert(client, ping=ping, btn_north=1, btn_east=1)
+        _send_and_revert(client, ping=ping, btn_south=1, btn_east=1)
+        _send_and_revert(client, ping=ping, btn_south=1, btn_west=1)
+        _send_and_revert(client, ping=ping, btn_north=1, btn_west=1)
+        _send_and_revert(client, ping=ping, btn_l1=1)
+        _send_and_revert(client, ping=ping, btn_l2=1)
+        _send_and_revert(client, ping=ping, btn_r1=1)
+        _send_and_revert(client, ping=ping, btn_r2=1)
+        _send_and_revert(client, ping=ping, btn_select=1)
+        _send_and_revert(client, ping=ping, btn_start=1)
+        _send_and_revert(client, ping=ping, btn_l2=1, btn_north=1, btn_south=1, abs_y=2)
+        _send_and_revert(client, ping=ping, btn_l1=1, btn_north=1, btn_south=1, abs_y=1)
+        _send_and_revert(client, ping=ping, btn_r2=1, btn_east=1, btn_west=1, abs_x=2)
+        _send_and_revert(client, ping=ping, btn_r1=1, btn_east=1, btn_west=1, abs_x=1)
+    LOGGER.info(f"Closing connection")
+    client.send(bytes([CLOSE_CONNECTION]))
+
+
+def _build_auth_message_buffer(index: int, password: str, nickname: str):
+    """
+    Builds the auth message buffer.
+    :param index: The index (0 to 7).
+    :param password: The password (4 lowercase characters).
+    :param nickname: The nickname (only the first 16 letters).
+    :return: The built buffer.
+    """
+
+    index = max(0, min(7, index))
+    password = ''.join([p for p in password.lower() if p in 'abcdefghijklmnopqrstuvwxyz'][:4])
+    nickname = nickname.strip()[:16]
+    buffer = bytes([index]) + (password + nickname).encode('utf-8')
+    buffer_length = len(buffer)
+    pad_len = 21 - buffer_length
+    buffer += bytes([8] * pad_len)
+    return buffer
+
+
+def connect(index: int, password: str, nickname: str, *, ping: bool = True):
+    """
+    Attempts a sample connection
+    :param index: The index of pad to use.
+    :param password: The password to attempt.
+    :param nickname: The nickname to use.
+    :param ping: Whether to use ping after each command or not.
+    """
+
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    buffer = bytearray([255])
+    try:
+        client.connect(("127.0.0.1", 2357))
+        # 1. Authenticating.
+        auth_buffer = _build_auth_message_buffer(index, password, nickname)
+        client.send(auth_buffer)
+        # 2. Reading the authentication attempt.
+        client.recv_into(buffer, 1)
+        code = buffer[0]
+        if code == 255:
+            LOGGER.error("For some reason, nothing was received as auth response!")
+            return
+        elif code == 0:
+            LOGGER.info("Login: success. Proceeding...")
+        elif code in range(1, 4):
+            LOGGER.error(f"Login: failure. Error code is: {['Failed', 'Invalid Pad', 'Busy Pad'][code - 1]}")
+            return
+        else:
+            LOGGER.error(f"Login: error. Unexpected code: {code}")
+            return
+        # 3. Waiting some seconds (giving time to open a Godot app).
+        LOGGER.info("Giving the user 10 seconds to open the pad-tracking sample app. "
+                    "This pad will be recognized.")
+        for i in range(10, 0):
+            LOGGER.info(f"{i}...")
+            time.sleep(1)
+        # 4. Running the whole loop.
+        LOGGER.info("Starting!")
+        _send_and_revert_loop(client, ping=ping)
+    except Exception as e:
+        LOGGER.exception("An unexpected error occurred!")
+    finally:
+        client.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="VirtualPad sample pad buttons")
+    parser.add_argument("index", type=int, choices=range(8), help="Gamepad number (0-7)")
+    parser.add_argument("password", type=str, help="4-characters alpha password")
+    parser.add_argument("-n", "--nickname", type=str, default="Player", help="Nickname to use")
+    parser.add_argument('--ping', dest='ping', action='store_true', help='Whether to use ping or not')
+    args = parser.parse_args()
+    index = args.index
+    password = args.password
+    nickname = args.nickname
+    ping = args.ping
+    LOGGER.info("I'll give you 5 seconds before starting...")
+    time.sleep(5)
+    connect(index, password, nickname, ping=ping)
+
+
+if __name__ == "__main__":
+    main()
