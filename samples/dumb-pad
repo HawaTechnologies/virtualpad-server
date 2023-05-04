@@ -68,10 +68,12 @@ def _send_and_revert(client: socket.socket, *, ping: bool = True,
         return
 
     LOGGER.info(f">>> Sending keys: {', '.join(f'{n}={v}' for n, v in changed_entries_names)}")
-    client.send(bytes([n_entries] + reduce(operator.add, changed_entries, [])))
+    elements = [n_entries] + reduce(operator.add, changed_entries, [])
+    client.send(bytes(elements))
     time.sleep(1)
     LOGGER.info(">>> Reverting keys")
-    client.send(bytes([n_entries] + reduce(operator.add, zero_entries, [])))
+    elements = [n_entries] + reduce(operator.add, zero_entries, [])
+    client.send(bytes(elements))
     time.sleep(1)
     if ping:
         LOGGER.info(">>> Sending ping")
@@ -89,13 +91,9 @@ def _send_and_revert_loop(client: socket.socket, *, ping: bool = True):
     for i in range(1, 3):
         LOGGER.info(f"Iteration #{i}")
         _send_and_revert(client, ping=ping, abs_y=2)
-        _send_and_revert(client, ping=ping, abs_y=0)
-        _send_and_revert(client, ping=ping, abs_x=1)
-        _send_and_revert(client, ping=ping, abs_x=0)
         _send_and_revert(client, ping=ping, abs_y=1)
-        _send_and_revert(client, ping=ping, abs_y=0)
         _send_and_revert(client, ping=ping, abs_x=2)
-        _send_and_revert(client, ping=ping, abs_x=0)
+        _send_and_revert(client, ping=ping, abs_x=1)
         _send_and_revert(client, ping=ping, btn_north=1, btn_east=1)
         _send_and_revert(client, ping=ping, btn_south=1, btn_east=1)
         _send_and_revert(client, ping=ping, btn_south=1, btn_west=1)
