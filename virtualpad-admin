@@ -28,7 +28,7 @@ def _send_command(command):
         client.send(f"{json.dumps(command)}".encode("utf-8"))
         received = client.recv(1024)
         decoded = received.decode("utf-8").strip()
-        print(f"Received: `{decoded}`")
+        print(decoded or '{"type": "response", "code": "unknown"}')
     finally:
         try:
             client.close()
