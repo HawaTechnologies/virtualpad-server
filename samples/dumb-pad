@@ -90,6 +90,8 @@ def _send_and_revert_loop(client: socket.socket, *, ping: bool = True):
 
     for i in range(1, 3):
         LOGGER.info(f"Iteration #{i}")
+        _send_and_revert(client, ping=ping, btn_select=1)
+        _send_and_revert(client, ping=ping, btn_start=1)
         _send_and_revert(client, ping=ping, abs_y=2)
         _send_and_revert(client, ping=ping, abs_y=1)
         _send_and_revert(client, ping=ping, abs_x=2)
@@ -102,8 +104,6 @@ def _send_and_revert_loop(client: socket.socket, *, ping: bool = True):
         _send_and_revert(client, ping=ping, btn_l2=1)
         _send_and_revert(client, ping=ping, btn_r1=1)
         _send_and_revert(client, ping=ping, btn_r2=1)
-        _send_and_revert(client, ping=ping, btn_select=1)
-        _send_and_revert(client, ping=ping, btn_start=1)
         _send_and_revert(client, ping=ping, btn_l2=1, btn_north=1, btn_south=1, abs_y=2)
         _send_and_revert(client, ping=ping, btn_l1=1, btn_north=1, btn_south=1, abs_y=1)
         _send_and_revert(client, ping=ping, btn_r2=1, btn_east=1, btn_west=1, abs_x=2)
