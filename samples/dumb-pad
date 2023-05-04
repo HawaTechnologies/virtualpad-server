@@ -26,9 +26,8 @@ CLOSE_CONNECTION = 32
 PING = 33
 
 
-_NAMES = ["btn_north", "btn_east", "btn_south", "btn_west",
-          "btn_l1", "btn_r1", "btn_l2", "btn_r2",
-          "btn_select", "btn_start", "abs_x", "abs_y"]
+_NAMES = ["btn_north", "btn_east", "btn_south", "btn_west", "btn_l1", "btn_r1", "btn_l2", "btn_r2",
+          "btn_select", "btn_start", "btn_up", "btn_down", "btn_left", "btn_right"]
 
 
 def _send_and_revert(client: socket.socket, *, ping: bool = True,
@@ -37,7 +36,8 @@ def _send_and_revert(client: socket.socket, *, ping: bool = True,
                      btn_l1: Optional[int] = None, btn_r1: Optional[int] = None,
                      btn_l2: Optional[int] = None, btn_r2: Optional[int] = None,
                      btn_select: Optional[int] = None, btn_start: Optional[int] = None,
-                     abs_x: Optional[int] = None, abs_y: Optional[int] = None):
+                     btn_left: Optional[int] = None, btn_right: Optional[int] = None,
+                     btn_up: Optional[int] = None, btn_down: Optional[int] = None):
     """
     Sends many key/value pairs, waits 1 second, sends
     corresponding key/0 pairs, waits another second.
@@ -53,13 +53,12 @@ def _send_and_revert(client: socket.socket, *, ping: bool = True,
     :param btn_r2: The optional change for BTN_R2 value.
     :param btn_select: The optional change for BTN_SELECT value.
     :param btn_start: The optional change for BTN_START value.
-    :param abs_x: The optional change for ABS_X value.
-    :param abs_y: The optional change for ABS_Y value.
+    :param btn_left: The optional change for BTN_UP.
+    :param btn_right: The optional change for ABS_Y value.
     """
 
-    base_entries = list(enumerate([btn_north, btn_east, btn_south, btn_west,
-                                   btn_l1, btn_r1, btn_l2, btn_r2,
-                                   btn_select, btn_start, abs_x, abs_y]))
+    base_entries = list(enumerate([btn_north, btn_east, btn_south, btn_west, btn_l1, btn_r1, btn_l2, btn_r2,
+                                   btn_select, btn_start, btn_up, btn_down, btn_left, btn_right]))
     changed_entries = [[i, v] for (i, v) in base_entries if v is not None]
     changed_entries_names = [[_NAMES[i], v] for (i, v) in base_entries if v is not None]
     zero_entries = [[i, 0] for [i, _] in changed_entries]
@@ -92,10 +91,10 @@ def _send_and_revert_loop(client: socket.socket, *, ping: bool = True):
         LOGGER.info(f"Iteration #{i}")
         _send_and_revert(client, ping=ping, btn_select=1)
         _send_and_revert(client, ping=ping, btn_start=1)
-        _send_and_revert(client, ping=ping, abs_y=2)
-        _send_and_revert(client, ping=ping, abs_y=1)
-        _send_and_revert(client, ping=ping, abs_x=2)
-        _send_and_revert(client, ping=ping, abs_x=1)
+        _send_and_revert(client, ping=ping, btn_down=1)
+        _send_and_revert(client, ping=ping, btn_left=1)
+        _send_and_revert(client, ping=ping, btn_up=1)
+        _send_and_revert(client, ping=ping, btn_right=1)
         _send_and_revert(client, ping=ping, btn_north=1, btn_east=1)
         _send_and_revert(client, ping=ping, btn_south=1, btn_east=1)
         _send_and_revert(client, ping=ping, btn_south=1, btn_west=1)
@@ -104,10 +103,10 @@ def _send_and_revert_loop(client: socket.socket, *, ping: bool = True):
         _send_and_revert(client, ping=ping, btn_l2=1)
         _send_and_revert(client, ping=ping, btn_r1=1)
         _send_and_revert(client, ping=ping, btn_r2=1)
-        _send_and_revert(client, ping=ping, btn_l2=1, btn_north=1, btn_south=1, abs_y=2)
-        _send_and_revert(client, ping=ping, btn_l1=1, btn_north=1, btn_south=1, abs_y=1)
-        _send_and_revert(client, ping=ping, btn_r2=1, btn_east=1, btn_west=1, abs_x=2)
-        _send_and_revert(client, ping=ping, btn_r1=1, btn_east=1, btn_west=1, abs_x=1)
+        _send_and_revert(client, ping=ping, btn_l2=1, btn_north=1, btn_south=1, btn_up=1)
+        _send_and_revert(client, ping=ping, btn_l1=1, btn_north=1, btn_south=1, btn_down=1)
+        _send_and_revert(client, ping=ping, btn_r2=1, btn_east=1, btn_west=1, btn_left=1)
+        _send_and_revert(client, ping=ping, btn_r1=1, btn_east=1, btn_west=1, btn_right=1)
     LOGGER.info(f"Closing connection")
     client.send(bytes([CLOSE_CONNECTION]))
 
@@ -168,7 +167,8 @@ def connect(index: int, password: str, nickname: str, *, ping: bool = True):
             LOGGER.info(f"{i}...")
             time.sleep(1)
         # 4. Running the whole loop.
-        LOGGER.info("Starting!")
+        LOGGER.info("Starting! Try capturing this in 5 seconds with your favorite debugger.")
+        time.sleep(5)
         _send_and_revert_loop(client, ping=ping)
     except Exception as e:
         LOGGER.exception("An unexpected error occurred!")
@@ -187,8 +187,6 @@ def main():
     password = args.password
     nickname = args.nickname
     ping = args.ping
-    LOGGER.info("I'll give you 5 seconds before starting...")
-    time.sleep(5)
     connect(index, password, nickname, ping=ping)
 
 

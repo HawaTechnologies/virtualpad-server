@@ -47,10 +47,7 @@ def _process_events(pad_index: int, length: int, buffer: bytearray, device: uinp
     fixed = []
     for index in range(0, length, 2):
         key, state = contents[index:index + 2]
-        if 10 <= key < 12:
-            # Fix any change to {0 -> 0}|{1 -> 1}|{2... -> -1}
-            fixed.append((key, -1 if state >= 2 else state))
-        elif 0 <= key < 10:
+        if 0 <= key < 14:
             # Fix any change to {0 -> 0}|{1... -> 1}
             fixed.append((key, state and 1))
     # Send the data. If the current pad is different,
@@ -180,8 +177,6 @@ def pad_loop(remote: socket.socket, connection_index: int, device_name: str, mes
     index = None
     device = None
     try:
-        # Giving some timeout for operations.
-        remote.settimeout(3)
         # Authenticating.
         LOGGER.info(f"Pad {connection_index} :: Attempting authentication")
         success, index, nickname = _pad_auth(remote, buffer)
