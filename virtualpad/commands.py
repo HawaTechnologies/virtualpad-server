@@ -21,7 +21,10 @@ def _remote_command_reader(remote: socket.socket, on_command: Callable[[dict, Ca
         remote.send(f"{json.dumps(d)}\n".encode("utf-8"))
 
     try:
-        command = json.loads(remote.recv(1024).decode("utf-8").strip())
+        line = remote.recv(1024)
+        if len(line) == 0:
+            return
+        command = json.loads(line.decode("utf-8").strip())
         on_command(command, _send)
     finally:
         remote.close()
