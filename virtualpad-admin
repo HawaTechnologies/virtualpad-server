@@ -27,6 +27,8 @@ def _send_command(command):
         client.settimeout(3)
         client.send(f"{json.dumps(command)}".encode("utf-8"))
         received = client.recv(1024)
+        if len(received) == 0:
+            return
         decoded = received.decode("utf-8").strip()
         print(decoded or '{"type": "response", "code": "unknown"}')
     finally:
