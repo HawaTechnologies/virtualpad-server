@@ -120,6 +120,7 @@ def launch_broadcast_server():
         nonlocal server
         LOGGER.info("Closing server")
         server.close()
+        LOGGER.info("Server closed")
         with lock:
             for key, entry in entries.values():
                 LOGGER.info("Closing entry")
