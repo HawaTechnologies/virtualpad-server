@@ -49,7 +49,7 @@ def _process_events(pad_index: int, length: int, buffer: bytearray, device: uinp
         key, state = contents[index:index + 2]
         if 10 <= key < 12:
             # Fix any change to {0 -> 0}|{1 -> 1}|{2... -> -1}
-            fixed.append((key, -1 if state >= 2 else 1))
+            fixed.append((key, -1 if state >= 2 else state))
         elif 0 <= key < 10:
             # Fix any change to {0 -> 0}|{1... -> 1}
             fixed.append((key, state and 1))
@@ -150,6 +150,7 @@ def _pad_read_command(remote: socket.socket, index: int, buffer: bytearray, devi
 
     length = buffer[0]
     if length < _BUFLEN:
+        length = length * 2
         received_length = remote.recv_into(buffer, length)
         _process_events(index, received_length, buffer, device)
     elif length == CLOSE_CONNECTION:
@@ -195,6 +196,16 @@ def pad_loop(remote: socket.socket, connection_index: int, device_name: str, mes
             # Get the received contents.
             LOGGER.info(f"Pad {connection_index} :: Waiting for pad command")
             _pad_read_command(remote, index, buffer, device)
+    except OSError as e:
+        if e.errno != errno.EBADF:
+            raise
+        # Forgive this one. This is expected. Other exceptions
+        # will bubble and be logged, but this is a standard
+        # signal triggered by the user itself to de-auth or
+        # by any explicit request (from client or from admin
+        # panel) to disconnect.
+        LOGGER.info(f"Pad {connection_index} :: Terminating gracefully")
+        send_notification({"type": "notification", "command": "pad:release", "index": index}, messages)
     except PadMismatch as e:
         # Forgive this one. This is expected. Other exceptions
         # will bubble and be logged, but this is a standard
