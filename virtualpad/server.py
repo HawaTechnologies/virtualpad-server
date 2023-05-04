@@ -6,7 +6,6 @@ import uinput
 import socket
 import threading
 from typing import Callable
-from typing.io import IO
 from .pads import PadMismatch, pad_send_all, pad_clear, pad_get, pad_set, pads_teardown, MAX_PAD_COUNT, POOL
 from .admin import send_notification, using_admin_channel
 
@@ -65,11 +64,11 @@ _HEARTBEATS = [True] * MAX_PAD_COUNT
 _HEARTBEAT_INTERVAL = 5
 
 
-def pad_heartbeat(remote: socket.socket, index: int, admin_writer: IO, device: uinput.Device):
+def pad_heartbeat(remote: socket.socket, index: int, messages: queue.Queue, device: uinput.Device):
     """
     A heartbeat loop, per pad, to detect whether it is alive or not.
     :param device: The device to check against.
-    :param admin_writer: The admin writer.
+    :param messages: The admin writer.
     :param remote: The involved socket.
     :param index: The pad index.
     """
@@ -81,7 +80,7 @@ def pad_heartbeat(remote: socket.socket, index: int, admin_writer: IO, device: u
                 _HEARTBEATS[index] = False
             else:
                 remote.close()
-                send_notification({"type": "notification", "command": "pad:timeout", "index": index}, admin_writer)
+                send_notification({"type": "notification", "command": "pad:timeout", "index": index}, messages)
                 break
     except:
         pass
@@ -94,7 +93,9 @@ def _pad_auth(remote: socket.socket, buffer: bytearray):
     """
 
     # Getting the first data.
-    remote.recv_into(buffer, 21)
+    read = remote.recv_into(buffer, 21)
+    if read == 0:
+        raise Exception("Login handshake aborted")
     index = buffer[0]
     attempted = bytes(buffer[1:5]).decode("utf-8")
     nickname = bytes(buffer[5:21]).decode("utf-8")
@@ -129,7 +130,7 @@ def _pad_init(remote: socket.socket, index: int, device_name: str, nickname: str
                       messages)
     entry = pad_get(index)
     device, nickname, _ = entry
-    threading.Thread(target=pad_heartbeat, args=(remote, index, messages)).start()
+    threading.Thread(target=pad_heartbeat, args=(remote, index, messages, device)).start()
     return device
 
 
@@ -142,7 +143,11 @@ def _pad_read_command(remote: socket.socket, index: int, buffer: bytearray, devi
     :param device: The device to forward events to.
     """
 
-    remote.recv_into(buffer, 1)
+    read = remote.recv_into(buffer, 1)
+    if read == 0:
+        # Force a close, even if no CLOSE_CONNECTION was received.
+        raise PadMismatch(index)
+
     length = buffer[0]
     if length < _BUFLEN:
         received_length = remote.recv_into(buffer, length)
@@ -156,7 +161,7 @@ def _pad_read_command(remote: socket.socket, index: int, buffer: bytearray, devi
     # We're not managing other client commands so far.
 
 
-def pad_loop(remote: socket.socket, device_name: str, messages: queue.Queue):
+def pad_loop(remote: socket.socket, connection_index: int, device_name: str, messages: queue.Queue):
     """
     This loop runs in a thread, reads all the button commands.
     It reads, from socket, buttons and axes changes and sends
@@ -164,9 +169,10 @@ def pad_loop(remote: socket.socket, device_name: str, messages: queue.Queue):
 
     Note that this thread will die automatically when the pad
     is released (or all the pads are terminated).
-    :param messages: The queue to write messages into.
-    :param device_name: The internal device name of the pad.
     :param remote: The socket to read commands from.
+    :param connection_index: The connection index.
+    :param device_name: The internal device name of the pad.
+    :param messages: The queue to write messages into.
     """
 
     buffer = bytearray(_BUFLEN)
@@ -176,14 +182,18 @@ def pad_loop(remote: socket.socket, device_name: str, messages: queue.Queue):
         # Giving some timeout for operations.
         remote.settimeout(3)
         # Authenticating.
+        LOGGER.info(f"Pad {connection_index} :: Attempting authentication")
         success, index, nickname = _pad_auth(remote, buffer)
         if not success:
+            LOGGER.info("Authentication failed")
             return
         # Initializing the pad.
+        LOGGER.info(f"Pad {connection_index} :: Initializing pad")
         device = _pad_init(remote, index, device_name, nickname, messages)
         # Finally, the loop to receive messages.
         while True:
             # Get the received contents.
+            LOGGER.info(f"Pad {connection_index} :: Waiting for pad command")
             _pad_read_command(remote, index, buffer, device)
     except PadMismatch as e:
         # Forgive this one. This is expected. Other exceptions
@@ -191,20 +201,28 @@ def pad_loop(remote: socket.socket, device_name: str, messages: queue.Queue):
         # signal triggered by the user itself to de-auth or
         # by any explicit request (from client or from admin
         # panel) to disconnect.
-        send_notification({"type": "notification", "command": "pad:release", "index": e.args[1]}, messages)
+        LOGGER.info(f"Pad {connection_index} :: Terminating gracefully")
+        send_notification({"type": "notification", "command": "pad:release", "index": index}, messages)
         remote.send(TERMINATED)
     except Exception as e:
         # Something weird happened. Clear the pad just in case.
+        LOGGER.info(f"Pad {connection_index} :: Terminating abruptly")
+        LOGGER.exception(f"Pad #{index} :: Exception on socket thread!")
+        send_notification({"type": "notification", "command": "pad:killed", "index": index}, messages)
         try:
             pad_clear(index, expect=device)
         except:
             pass
-        send_notification({"type": "notification", "command": "pad:killed", "index": e.args[1]}, messages)
+        try:
+            remote.send(TERMINATED)
+        except:
+            pass
     finally:
         remote.close()
 
 
 server_wait = threading.Event()
+server_wait.set()
 
 
 def is_server_running():
@@ -232,7 +250,7 @@ def server_loop(server: socket.socket, device_name: str, messages: queue.Queue,
 
     try:
         send_notification({"type": "notification", "command": "server:waiting"}, messages)
-        server_wait.wait(timeout)
+        server_wait.wait(0)
     except Exception:
         send_notification({"type": "notification", "command": "server:wait-error"}, messages)
         server.close()
@@ -244,10 +262,12 @@ def server_loop(server: socket.socket, device_name: str, messages: queue.Queue,
         server_wait.set()
         # Tears down the pads in the server.
         pads_teardown()
+        index = 0
         while True:
             try:
                 remote, address = server.accept()
-                threading.Thread(target=pad_loop, args=(remote, device_name, messages)).start()
+                threading.Thread(target=pad_loop, args=(remote, index, device_name, messages)).start()
+                index += 1
             except OSError as e:
                 # Accept errors of type EBADF mean that the server
                 # is closed. Any other exception should be logged.
@@ -303,6 +323,7 @@ class VirtualPadService:
         elif command == "server:stop":
             if self._vpad_server:
                 self._vpad_server.close()
+                send_response({"type": "response", "code": "server:ok"})
             else:
                 send_response({"type": "response", "code": "server:not-running"})
         elif command == "server:is-running":
