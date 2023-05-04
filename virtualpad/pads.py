@@ -164,7 +164,7 @@ def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]]):
     # Pass all the commands as events using syn=True, then
     # after the last one just call .syn().
     for event, value in events:
-        device.emit(_MAPPED_EVENTS[event], value, syn=True)
+        device.emit(_MAPPED_EVENTS[event], value, syn=False)
     device.syn()
 
 
