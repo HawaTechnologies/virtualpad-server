@@ -66,4 +66,9 @@ def launch_commands_server(path: str, on_command: Callable[[dict, Callable[[dict
     server.listen(8)
     thread = threading.Thread(target=_server_accepter, args=(server, on_command))
     thread.start()
-    return thread, lambda: server.close()
+
+    def _close():
+        LOGGER.info("Closing server")
+        server.close()
+        LOGGER.info("Server closed")
+    return thread, _close
