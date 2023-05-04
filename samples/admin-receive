@@ -21,7 +21,10 @@ def main():
 
     try:
         while True:
-            line = connection.recv(1024).decode("utf-8")
+            line = connection.recv(1024)
+            if not line:
+                return
+            line = line.decode("utf-8")
             if line:
                 LOGGER.info(f">>> Received: {line.strip()}")
     except BrokenPipeError:
