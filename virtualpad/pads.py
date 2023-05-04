@@ -122,7 +122,7 @@ def pad_set(index: int, device_name: str, nickname: str):
     """
 
     _check_index(index)
-    current = POOL[index]
+    current = POOL[index][0]
     if current:
         raise PadInUse(index, current)
     POOL[index] = make_pad(f"{device_name}-{index}"), nickname, ''
