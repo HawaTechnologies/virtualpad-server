@@ -25,7 +25,6 @@ COMMAND_LENGTH_MISMATCH = bytes([5])
 
 # This variable checks whether the pad responded to the last ping command
 # or not (this is checked per-pad).
-_HEARTBEATS = [True] * MAX_PAD_COUNT
 _HEARTBEAT_INTERVAL = 5
 _RECV_TIMEOUT = 1
 
@@ -143,7 +142,7 @@ class PadHandler(IndexedHandler):
                 fixed.append((key, state and 1))
             else:
                 # 0-255 state is respected for axes.
-                fixed.append((key, state))
+                fixed.append((key, min(255, max(0, state))))
         # Send the data. If the current pad is different,
         # then this thread ends.
         pad_send_all(self._pad_index, fixed, self._device)
@@ -162,7 +161,7 @@ class PadHandler(IndexedHandler):
         try:
             while self._device:
                 try:
-                    buffer = self.rfile.read(40)
+                    buffer = self.rfile.read(1)
                 except socket.timeout:
                     continue
 
@@ -171,8 +170,7 @@ class PadHandler(IndexedHandler):
 
                 length = buffer[0]
                 if length < N_BUTTONS:
-                    length = length * 2
-                    commands = buffer[1:1 + length]
+                    commands = self.rfile.read(length * 2)
                     if len(commands) != length:
                         self.rfile.write(COMMAND_LENGTH_MISMATCH)
                     self._process_events(commands)
@@ -180,7 +178,7 @@ class PadHandler(IndexedHandler):
                     pad_clear(self._pad_index)
                     return
                 elif length == PING:
-                    _HEARTBEATS[self._pad_index] = True
+                    self._has_ping = True
                     pass
 
         except PadMismatch:
@@ -198,10 +196,9 @@ class PadServer(IndexedTCPServer):
     This server handles all the pads' commands.
     """
 
-    def __init__(self, server_address: Tuple[str, int],
-                 RequestHandlerClass: Type[socketserver.BaseRequestHandler],
-                 broadcast_server: IndexedTCPServer, device_name: str = "Hawa-VirtualPad"):
-        super().__init__(server_address, RequestHandlerClass)
+    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Type[socketserver.BaseRequestHandler],
+                 bind_and_activate: bool, broadcast_server: IndexedTCPServer, device_name: str = "Hawa-VirtualPad"):
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
         self._device_name = device_name
         self._broadcast_server = broadcast_server
 
