@@ -48,7 +48,7 @@ class MainHandler(IndexedHandler):
     def handle(self) -> None:
         state = _STATES[self.server]
 
-        line = self.rfile.read(1024)
+        line = self.rfile.readline()
         if len(line) == 0:
             return
 
