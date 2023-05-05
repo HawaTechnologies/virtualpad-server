@@ -95,7 +95,7 @@ class BroadcastServer(IndexedTCPServer):
         LOGGER.info("Server stopped")
 
 
-_STATES: Dict[BroadcastServer, BroadcastServerState]
+_STATES: Dict[BroadcastServer, BroadcastServerState] = {}
 
 
 def launch_broadcast_server() -> socketserver.TCPServer:
