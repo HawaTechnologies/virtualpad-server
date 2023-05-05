@@ -71,10 +71,11 @@ class BroadcastServer(IndexedTCPServer):
             RequestHandlerClass: Type[socketserver.BaseRequestHandler],
             bind_and_activate: bool = True,
     ):
-        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
         self._state = None
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
 
     def server_activate(self) -> None:
+        super().server_activate()
         self._state = _STATES.setdefault(self, BroadcastServerState(lock=threading.Lock(), queues={}))
         LOGGER.info("Server started")
 
