@@ -22,8 +22,8 @@ PAD_BUSY = 3
 TERMINATED = 4
 
 
-CLOSE_CONNECTION = 32
-PING = 33
+CLOSE_CONNECTION = 18
+PING = 19
 
 
 _NAMES = ["btn_north", "btn_east", "btn_south", "btn_west", "btn_l1", "btn_r1", "btn_l2", "btn_r2",
@@ -168,7 +168,10 @@ def connect(index: int, password: str, nickname: str, *, ping: bool = True):
             time.sleep(1)
         # 4. Running the whole loop.
         LOGGER.info("Starting! Try capturing this in 5 seconds with your favorite debugger.")
-        time.sleep(5)
+        for _ in range(5):
+            time.sleep(1)
+            if ping:
+                client.send(bytes([PING]))
         _send_and_revert_loop(client, ping=ping)
     except Exception as e:
         LOGGER.exception("An unexpected error occurred!")
