@@ -48,6 +48,7 @@ class BroadcastHandler(IndexedHandler):
             if message is _FINISH:
                 return
             # Otherwise, the message will be a bytes instance.
+            # Failure to send this message will mean it closed.
             self.wfile.write(message)
 
     def finish(self) -> None:
@@ -59,8 +60,7 @@ class BroadcastHandler(IndexedHandler):
 
 class BroadcastServer(IndexedTCPServer):
     """
-    It has a single queue and broadcasts their contents to
-    all their connections.
+    Broadcasts a message to the clients.
     """
 
     def __init__(
@@ -75,8 +75,8 @@ class BroadcastServer(IndexedTCPServer):
 
     def server_activate(self) -> None:
         self._queue = queue.Queue
-        self._settings = _SETTINGS.setdefault(self, BroadcastServerSettings(lock=threading.Lock(),
-                                                                            queues={}))
+        self._settings = _SETTINGS.setdefault(self, BroadcastServerSettings(lock=threading.Lock(), queues={}))
+        LOGGER.info("Server started")
 
     def _send_all(self, what: any) -> None:
         with self._settings.lock:
@@ -84,10 +84,15 @@ class BroadcastServer(IndexedTCPServer):
                 q.put(what)
 
     def broadcast(self, message: bytes) -> None:
+        LOGGER.info(f"Broadcasting: {message}")
         self._send_all(message)
 
-    def close_all(self) -> None:
+    def server_close(self) -> None:
         self._send_all(_FINISH)
+        super().server_close()
+        self._settings = None
+        _SETTINGS.pop(self, None)
+        LOGGER.info("Server stopped")
 
 
 _SETTINGS: Dict[BroadcastServer, BroadcastServerSettings]
