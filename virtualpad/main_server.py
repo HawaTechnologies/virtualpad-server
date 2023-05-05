@@ -125,7 +125,7 @@ class MainServer(IndexedUnixServer):
 
     def server_close(self) -> None:
         super().server_close()
-        if self._settings.broadcast_server:
+        if self._settings and self._settings.broadcast_server:
             self._settings.broadcast_server.shutdown()
         self._settings = None
         _STATES.pop(self, None)
