@@ -27,8 +27,10 @@ def make_pad(name: str):
         uinput.BTN_DPAD_DOWN,
         uinput.BTN_DPAD_LEFT,
         uinput.BTN_DPAD_RIGHT,
-        uinput.ABS_X + (-1, 1, 0, 0),
-        uinput.ABS_Y + (-1, 1, 0, 0)
+        uinput.ABS_X + (0, 255, 0, 0),
+        uinput.ABS_Y + (0, 255, 0, 0),
+        uinput.ABS_RX + (0, 255, 0, 0),
+        uinput.ABS_RY + (0, 255, 0, 0),
     )
     return uinput.Device(
         events, name=name
@@ -174,14 +176,14 @@ def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]]):
     for event, value in events:
         print(f"Event: {_MAPPED_EVENTS[event]} -> {value}")
         device.emit(_MAPPED_EVENTS[event], value, syn=False)
-        if event == BTN_UP:
-            device.emit(uinput.ABS_Y, value * -1, syn=False)
-        elif event == BTN_DOWN:
-            device.emit(uinput.ABS_Y, value, syn=False)
-        elif event == BTN_LEFT:
-            device.emit(uinput.ABS_X, value * -1, syn=False)
-        elif event == BTN_RIGHT:
-            device.emit(uinput.ABS_X, value, syn=False)
+        # if event == BTN_UP:
+        #     device.emit(uinput.ABS_Y, value * -1, syn=False)
+        # elif event == BTN_DOWN:
+        #     device.emit(uinput.ABS_Y, value, syn=False)
+        # elif event == BTN_LEFT:
+        #     device.emit(uinput.ABS_X, value * -1, syn=False)
+        # elif event == BTN_RIGHT:
+        #     device.emit(uinput.ABS_X, value, syn=False)
     print("Syncing...")
     device.syn()
 
