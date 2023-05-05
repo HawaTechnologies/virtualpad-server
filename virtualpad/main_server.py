@@ -11,7 +11,7 @@ from virtualpad.pads import pad_clear, POOL, pads_teardown
 
 LOGGER = logging.getLogger("hawa.virtualpad.main-server")
 LOGGER.setLevel(logging.INFO)
-MAIN_BINDING = os.path.expanduser("~/.config/Hawa/server.sock")
+MAIN_BINDING = os.path.expanduser("~/.config/Hawa/admin.sock")
 
 
 class MainServerState:
@@ -38,8 +38,12 @@ class MainHandler(IndexedHandler):
         self.server.broadcast(f"{json.dumps(obj)}\n".encode("utf-8"))
 
     def setup(self) -> None:
-        assert isinstance(self.server, MainServer)
         super().setup()
+        LOGGER.info(f"Admin #{self.index} starting")
+
+    def finish(self) -> None:
+        LOGGER.info(f"Admin #{self.index} finished")
+        super().finish()
 
     def handle(self) -> None:
         state = _STATES[self.server]
@@ -54,7 +58,7 @@ class MainHandler(IndexedHandler):
 
             if command == "server:start":
                 if not state.pad_server:
-                    state.pad_server = launch_pad_server()
+                    state.pad_server = launch_pad_server(_STATES[self.server].broadcast_server)
                     self._send({"type": "response", "code": "server:ok", "status": [
                         entry[1:] for entry in POOL
                     ]})
@@ -102,20 +106,27 @@ class MainServer(IndexedUnixServer):
             self,
             server_address: Union[str, bytes],
             RequestHandlerClass: Type[socketserver.BaseRequestHandler],
-            bind_and_activate: bool = True,
+            bind_and_activate: bool = True
     ):
+        try:
+            os.unlink(server_address)
+        except:
+            pass
+        print(f"Binding main server to: {server_address}")
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
         self._settings = None
 
     def server_activate(self) -> None:
+        super().server_activate()
         self._settings = _STATES.setdefault(self, MainServerState())
         self._settings.broadcast_server = launch_broadcast_server()
-        self._settings.pad_server = launch_pad_server()
+        self._settings.pad_server = launch_pad_server(self._settings.broadcast_server)
         LOGGER.info("Server started")
 
     def server_close(self) -> None:
         super().server_close()
-        self._settings.broadcast_server.shutdown()
+        if self._settings.broadcast_server:
+            self._settings.broadcast_server.shutdown()
         self._settings = None
         _STATES.pop(self, None)
         LOGGER.info("Server stopped")
@@ -130,5 +141,4 @@ _STATES: Dict[MainServer, MainServerState] = {}
 
 
 def launch_main_server():
-    assert issubclass(MainServer, socketserver.TCPServer)
     return launch_server(MainServer, MAIN_BINDING, MainHandler)
