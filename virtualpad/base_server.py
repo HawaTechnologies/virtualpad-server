@@ -1,5 +1,6 @@
 import socketserver
-from typing import Any, Tuple, Type, Union
+import threading
+from typing import Any, Type
 
 
 _INDICES_MAPPING = {}
@@ -51,3 +52,34 @@ class IndexedUnixServer(socketserver.ThreadingUnixStreamServer):
         super().server_close()
         _pop_server(self.RequestHandlerClass, self)
 
+
+def launch_server_in_thread(server_type: Type[socketserver.TCPServer], binding: Any,
+                            handler_type: Type[socketserver.BaseRequestHandler],
+                            *args, **kwargs) -> socketserver.TCPServer:
+    """
+    Launches a server in a separate thread. Returns the server instance.
+    :param server_type: The server type.
+    :param binding: The server binding.
+    :param handler_type: The handler type.
+    :return: The server instance.
+    """
+
+    server = server_type(binding, handler_type, *args, **kwargs)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.daemon = True
+    thread.start()
+    return server
+
+
+def launch_server(server_type: Type[socketserver.TCPServer], binding: Any,
+                  handler_type: Type[socketserver.BaseRequestHandler],
+                  *args, **kwargs):
+    """
+    Launches a server in the same thread.
+    :param server_type: The server type.
+    :param binding: The server binding.
+    :param handler_type: The handler type.
+    :return: The server instance.
+    """
+
+    server_type(binding, handler_type, *args, **kwargs).serve_forever()
