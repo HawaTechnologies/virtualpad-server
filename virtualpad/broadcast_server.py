@@ -47,7 +47,11 @@ class BroadcastHandler(IndexedHandler):
                 return
             # Otherwise, the message will be a bytes instance.
             # Failure to send this message will mean it closed.
-            self.wfile.write(message)
+            try:
+                self.wfile.write(message)
+            except:
+                # The connection closed or is broken.
+                return
 
     def finish(self) -> None:
         LOGGER.info(f"Remote #{self.index} finished")
