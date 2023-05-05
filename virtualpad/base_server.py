@@ -66,7 +66,12 @@ def launch_server_in_thread(server_type: Type[socketserver.TCPServer], binding: 
     """
 
     server = server_type(binding, handler_type, True, *args, **kwargs)
-    thread = threading.Thread(target=server.serve_forever)
+
+    def _serve():
+        with server as s:
+            s.serve_forever()
+
+    thread = threading.Thread(target=_serve)
     thread.daemon = True
     thread.start()
     return server
@@ -83,4 +88,5 @@ def launch_server(server_type: Type[socketserver.TCPServer], binding: Any,
     :return: The server instance.
     """
 
-    server_type(binding, handler_type, True, *args, **kwargs).serve_forever()
+    with server_type(binding, handler_type, True, *args, **kwargs) as s:
+        s.serve_forever()
