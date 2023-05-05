@@ -25,6 +25,22 @@ Also, ensure the proper packages are installed. Either use virtualenv or `sudo a
 
 Then, run the server:
 
-    python virtualpad-server &
+    ./virtualpad-server
 
-Or perhaps running it as a service (owned by {username}).
+Or perhaps running it as a service owned by {username} (e.g. /etc/systemd/system/hawa-virtualpad.service):
+
+    [Unit]
+    Description=Hawa VirtualPad
+    After=network.target
+
+    [Service]
+    User=username
+    Group=username
+    WorkingDirectory=/opt/Hawa/virtualpad
+    ExecStart=/opt/Hawa/virtualpad/virtualpad-server
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+
+This code assumes this codebase is installed into `/opt/Hawa/virtualpad`.
