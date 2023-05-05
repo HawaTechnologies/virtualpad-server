@@ -54,6 +54,7 @@ class BroadcastHandler(IndexedHandler):
                 return
 
     def finish(self) -> None:
+        super().finish()
         LOGGER.info(f"Remote #{self.index} finished")
         with _STATES[self.server].lock:
             self._queue = None
@@ -93,6 +94,7 @@ class BroadcastServer(IndexedTCPServer):
         self._send_all(message)
 
     def server_close(self) -> None:
+        LOGGER.info("Server stopping")
         self._send_all(_FINISH)
         super().server_close()
         self._state = None
