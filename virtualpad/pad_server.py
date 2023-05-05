@@ -67,13 +67,13 @@ def _pad_auth(remote: socketserver.StreamRequestHandler):
 class PadHandler(IndexedHandler):
 
     def __init__(self, request: Any, client_address: Any, server: socketserver.BaseServer):
-        super().__init__(request, client_address, server)
-        if not isinstance(server, PadServer):
-            raise ValueError("Only a MainServer (or subclasses) can use a PadHandler")
         self._has_ping = False
         self._pad_index = None
         self._nickname = None
         self._device = None
+        super().__init__(request, client_address, server)
+        if not isinstance(server, PadServer):
+            raise ValueError("Only a MainServer (or subclasses) can use a PadHandler")
 
     def _send(self, obj):
         self.wfile.write(f"{json.dumps(obj)}\n".encode("utf-8"))
@@ -152,8 +152,10 @@ class PadHandler(IndexedHandler):
         super().setup()
         LOGGER.info(f"Remote #{self.index} starting")
         self._auth()
-        if self._pad_index:
+        if self._pad_index is not None:
             self._init_pad()
+        else:
+            self._device = None
 
     def handle(self) -> None:
         self.connection.settimeout(_RECV_TIMEOUT)
@@ -187,6 +189,7 @@ class PadHandler(IndexedHandler):
             self._device = None
 
     def finish(self) -> None:
+        super().finish()
         LOGGER.info(f"Remote #{self.index} finished")
 
 
