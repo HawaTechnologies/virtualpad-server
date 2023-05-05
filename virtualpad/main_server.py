@@ -28,7 +28,7 @@ class MainHandler(IndexedHandler):
 
     def __init__(self, request: Any, client_address: Any, server: socketserver.BaseServer):
         if not isinstance(server, MainServer):
-            raise ValueError("Only a BroadcastServer (or subclasses) can use a BroadcastHandler")
+            raise ValueError("Only a MainServer (or subclasses) can use a MainHandler")
         super().__init__(request, client_address, server)
 
     def _send(self, obj):
