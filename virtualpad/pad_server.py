@@ -26,7 +26,6 @@ COMMAND_LENGTH_MISMATCH = bytes([5])
 # This variable checks whether the pad responded to the last ping command
 # or not (this is checked per-pad).
 _HEARTBEAT_INTERVAL = 5
-_RECV_TIMEOUT = 1
 
 # Buttons are: D-Pad (4), B-Pad (4), Shoulders (4), Start/Select (2) and axes (4).
 N_BUTTONS = 18
@@ -157,7 +156,6 @@ class PadHandler(IndexedHandler):
             self._device = None
 
     def handle(self) -> None:
-        self.connection.settimeout(_RECV_TIMEOUT)
         try:
             while self._device:
                 try:
@@ -172,7 +170,7 @@ class PadHandler(IndexedHandler):
                 if length < N_BUTTONS:
                     commands = self.rfile.read(length * 2)
                     if len(commands) != length:
-                        self.rfile.write(COMMAND_LENGTH_MISMATCH)
+                        self.wfile.write(COMMAND_LENGTH_MISMATCH)
                     self._process_events(commands)
                 elif length == CLOSE_CONNECTION:
                     pad_clear(self._pad_index)
