@@ -2,22 +2,23 @@ import socketserver
 from typing import Any, Tuple, Type, Union
 
 
+_INDICES_MAPPING = {}
+
+
+def _next_index(cls, server):
+    value = _INDICES_MAPPING.setdefault(cls, {}).setdefault(server, 0)
+    _INDICES_MAPPING[cls][server] += 1
+    return value
+
+
+def _pop_server(cls, server):
+    _INDICES_MAPPING.get(cls, {}).pop(server, None)
+
+
 class IndexedHandler(socketserver.StreamRequestHandler):
     """
     Each connection will have its own index.
     """
-
-    _INDICES_MAPPING = {}
-
-    @classmethod
-    def _next_index(cls, server):
-        value = IndexedHandler._INDICES_MAPPING.setdefault(cls, {}).setdefault(server, 0)
-        IndexedHandler._INDICES_MAPPING[cls][server] += 1
-        return value
-
-    @classmethod
-    def _pop_server(cls, server):
-        IndexedHandler._INDICES_MAPPING[cls].pop(server, None)
 
     def __init__(self, request: Any, client_address: Any, server: socketserver.BaseServer):
         super().__init__(request, client_address, server)
@@ -28,7 +29,7 @@ class IndexedHandler(socketserver.StreamRequestHandler):
         return self._index
 
     def setup(self) -> None:
-        self._index = self._next_index(self.server)
+        self._index = _next_index(self.__class__, self.server)
 
 
 class IndexedTCPServer(socketserver.ThreadingTCPServer):
@@ -38,8 +39,7 @@ class IndexedTCPServer(socketserver.ThreadingTCPServer):
 
     def server_close(self) -> None:
         super().server_close()
-        if isinstance(self.RequestHandlerClass, IndexedHandler):
-            self.RequestHandlerClass._pop_server(self)
+        _pop_server(self.RequestHandlerClass, self)
 
 
 class IndexedUnixServer(socketserver.ThreadingUnixStreamServer):
@@ -49,6 +49,5 @@ class IndexedUnixServer(socketserver.ThreadingUnixStreamServer):
 
     def server_close(self) -> None:
         super().server_close()
-        if isinstance(self.RequestHandlerClass, IndexedHandler):
-            self.RequestHandlerClass._pop_server(self)
+        _pop_server(self.RequestHandlerClass, self)
 
