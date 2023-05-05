@@ -2,7 +2,6 @@ import logging
 import queue
 import socketserver
 import threading
-from threading import Lock
 from typing import Any, Tuple, Dict, Type, NamedTuple
 from .base_server import IndexedHandler, IndexedTCPServer, launch_server_in_thread
 
@@ -13,7 +12,7 @@ BROADCAST_PORT = 2358
 _FINISH = object()
 
 
-class BroadcastServerSettings(NamedTuple):
+class BroadcastServerState(NamedTuple):
     """
     Settings for a server.
     """
@@ -28,18 +27,18 @@ class BroadcastHandler(IndexedHandler):
     any received message.
     """
 
-    QUEUES = {}
-    LOCK = Lock()
-
     def __init__(self, request: Any, client_address: Any, server: socketserver.BaseServer):
+        if not isinstance(server, BroadcastServer):
+            raise ValueError("Only a BroadcastServer (or subclasses) can use a BroadcastHandler")
         super().__init__(request, client_address, server)
         self._queue = None
 
     def setup(self) -> None:
+        assert isinstance(self.server, BroadcastServer)
         super().setup()
-        with self.LOCK:
+        with _STATES[self.server].lock:
             self._queue = queue.Queue()
-            self.QUEUES[self] = self._queue
+            _STATES[self.server].queues[self] = self._queue
         LOGGER.info(f"Remote #{self.index} starting")
 
     def handle(self) -> None:
@@ -52,10 +51,11 @@ class BroadcastHandler(IndexedHandler):
             self.wfile.write(message)
 
     def finish(self) -> None:
+        assert isinstance(self.server, BroadcastServer)
         LOGGER.info(f"Remote #{self.index} finished")
-        with self.LOCK:
+        with _STATES[self.server].lock:
             self._queue = None
-            self.QUEUES.pop(self, None)
+            _STATES[self.server].queues.pop(self, None)
 
 
 class BroadcastServer(IndexedTCPServer):
@@ -70,17 +70,19 @@ class BroadcastServer(IndexedTCPServer):
             bind_and_activate: bool = True,
     ):
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
-        self._queue = None
-        self._settings = None
+        self._state = None
 
     def server_activate(self) -> None:
-        self._queue = queue.Queue
-        self._settings = _SETTINGS.setdefault(self, BroadcastServerSettings(lock=threading.Lock(), queues={}))
+        self._state = _STATES.setdefault(self, BroadcastServerState(lock=threading.Lock(), queues={}))
         LOGGER.info("Server started")
 
     def _send_all(self, what: any) -> None:
-        with self._settings.lock:
-            for s, q in self._settings.queues.items():
+        if not self._state:
+            LOGGER.error("This server was cleared. There's no way to send messages")
+            return
+
+        with self._state.lock:
+            for s, q in self._state.queues.items():
                 q.put(what)
 
     def broadcast(self, message: bytes) -> None:
@@ -90,12 +92,12 @@ class BroadcastServer(IndexedTCPServer):
     def server_close(self) -> None:
         self._send_all(_FINISH)
         super().server_close()
-        self._settings = None
-        _SETTINGS.pop(self, None)
+        self._state = None
+        _STATES.pop(self, None)
         LOGGER.info("Server stopped")
 
 
-_SETTINGS: Dict[BroadcastServer, BroadcastServerSettings]
+_STATES: Dict[BroadcastServer, BroadcastServerState]
 
 
 def launch_broadcast_server() -> socketserver.TCPServer:
