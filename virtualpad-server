@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import logging
-from virtualpad.server import VirtualPadService
+from virtualpad.main_server import launch_main_server
 
 
 """
@@ -18,7 +18,7 @@ LOGGER.setLevel(logging.INFO)
 if __name__ == "__main__":
     try:
         LOGGER.info("Initializing service")
-        VirtualPadService(device_name="Hawa-Virtualpad").main()
+        launch_main_server()
     except Exception as e:
         LOGGER.exception("An error occurred!")
     finally:
