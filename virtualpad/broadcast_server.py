@@ -34,7 +34,6 @@ class BroadcastHandler(IndexedHandler):
         self._queue = None
 
     def setup(self) -> None:
-        assert isinstance(self.server, BroadcastServer)
         super().setup()
         with _STATES[self.server].lock:
             self._queue = queue.Queue()
@@ -51,7 +50,6 @@ class BroadcastHandler(IndexedHandler):
             self.wfile.write(message)
 
     def finish(self) -> None:
-        assert isinstance(self.server, BroadcastServer)
         LOGGER.info(f"Remote #{self.index} finished")
         with _STATES[self.server].lock:
             self._queue = None
