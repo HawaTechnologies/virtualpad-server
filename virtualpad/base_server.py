@@ -30,6 +30,7 @@ class IndexedHandler(socketserver.StreamRequestHandler):
         return self._index
 
     def setup(self) -> None:
+        super().setup()
         self._index = _next_index(self.__class__, self.server)
 
 
@@ -64,7 +65,7 @@ def launch_server_in_thread(server_type: Type[socketserver.TCPServer], binding: 
     :return: The server instance.
     """
 
-    server = server_type(binding, handler_type, *args, **kwargs)
+    server = server_type(binding, handler_type, True, *args, **kwargs)
     thread = threading.Thread(target=server.serve_forever)
     thread.daemon = True
     thread.start()
@@ -82,4 +83,4 @@ def launch_server(server_type: Type[socketserver.TCPServer], binding: Any,
     :return: The server instance.
     """
 
-    server_type(binding, handler_type, *args, **kwargs).serve_forever()
+    server_type(binding, handler_type, True, *args, **kwargs).serve_forever()
