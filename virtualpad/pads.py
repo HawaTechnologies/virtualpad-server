@@ -1,4 +1,5 @@
 import random
+import traceback
 from typing import List, Optional, Tuple
 import uinput
 
@@ -16,10 +17,10 @@ def make_pad(name: str, mode: int = 0):
     """
 
     axes = (
-        uinput.ABS_X + (0, 255, 0, 0),
-        uinput.ABS_Y + (0, 255, 0, 0),
-        uinput.ABS_RX + (0, 255, 0, 0),
-        uinput.ABS_RY + (0, 255, 0, 0),
+        uinput.ABS_X + (0, 255, 0, 15),
+        uinput.ABS_Y + (0, 255, 0, 15),
+        uinput.ABS_RX + (0, 255, 0, 15),
+        uinput.ABS_RY + (0, 255, 0, 15),
     )
 
     events = [(
@@ -40,9 +41,14 @@ def make_pad(name: str, mode: int = 0):
     ) + axes, tuple(
         (0x01, k) for k in range(0x120, 0x12a)
     ) + axes + ((0x04, 0x04),)]
-    return uinput.Device(
+    device = uinput.Device(
         events[mode], name=name
     )
+    device.emit(uinput.ABS_X, 127, syn=False)
+    device.emit(uinput.ABS_Y, 127, syn=False)
+    device.emit(uinput.ABS_RX, 127, syn=False)
+    device.emit(uinput.ABS_RY, 127, syn=True)
+    return device
 
 
 POOL: List[Tuple[Optional[uinput.Device], Optional[str], Optional[str]]] = [(None, None, '')] * MAX_PAD_COUNT
@@ -258,7 +264,7 @@ def _pad_send_all_mode1(device: uinput.Device, events: List[Tuple[int, int]]):
     device.syn()
 
 
-def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]], mode: int = 0):
+def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]], mode: int):
     """
     Sends all the events to the device, atomically.
     :param device: The device to send the events to.
@@ -266,20 +272,25 @@ def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]], mode: in
     :param mode: The joypad mode.
     """
 
-    [_pad_send_all_mode0, _pad_send_all_mode1][mode](device, events)
+    try:
+        [_pad_send_all_mode0, _pad_send_all_mode1][mode](device, events)
+    except Exception as e:
+        traceback.print_exc()
 
 
-def pad_send_all(index: int, events: List[Tuple[int, int]], expect: Optional[uinput.Device] = None):
+def pad_send_all(index: int, events: List[Tuple[int, int]], mode: int, expect: Optional[uinput.Device] = None):
     """
     Sends all the events to the device, atomically.
     :param index: The index of the device to send the events to.
     :param events: The events to send.
+    :param mode: The pad mode.
     :param expect: If not None, what device to expect.
     """
 
+    print(f"Sending all events (*): {events}")
     if expect is not None and POOL[index][0] is not expect:
         raise PadMismatch(index)
-    _pad_send_all(POOL[index][0], events)
+    _pad_send_all(POOL[index][0], events, mode)
 
 
 pads_teardown()

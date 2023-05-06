@@ -4,6 +4,7 @@ import time
 import logging
 import threading
 import socketserver
+import traceback
 from typing import Any, Type, Tuple
 from virtualpad.base_server import IndexedTCPServer, IndexedHandler, launch_server_in_thread
 from virtualpad.broadcast_server import BroadcastServer
@@ -48,21 +49,22 @@ def _pad_auth(remote: socketserver.StreamRequestHandler):
     index = read[0]
     mode = read[1]
     attempted = bytes(read[2:6]).decode("utf-8")
-    nickname = bytes(read[6:22]).decode("utf-8").rstrip('\b\n\t\r ')
+    nickname = bytes(read[6:22]).decode("utf-8").rstrip('\b')
+    LOGGER.info(f"For index {index} and mode {mode}, '{nickname}' attempts to join")
     # Authenticating.
     if mode not in range(PAD_MODES):
         remote.wfile.write(PAD_MODE_INVALID)
-        return False, None, None
+        return False, None, None, None
     if index >= MAX_PAD_COUNT:
         remote.wfile.write(PAD_INVALID)
-        return False, None, None
+        return False, None, None, None
     entry = pad_get(index)
     if entry[0]:
         remote.wfile.write(PAD_BUSY)
-        return False, None, None
+        return False, None, None, None
     if attempted != entry[2]:
         remote.wfile.write(LOGIN_FAILURE)
-        return False, None, None
+        return False, None, None, None
     remote.wfile.write(LOGIN_SUCCESS)
     return True, index, nickname, mode
 
@@ -151,7 +153,10 @@ class PadHandler(IndexedHandler):
                 fixed.append((key, min(255, max(0, state))))
         # Send the data. If the current pad is different,
         # then this thread ends.
-        pad_send_all(self._pad_index, fixed, self._device)
+        try:
+            pad_send_all(self._pad_index, fixed, self._mode, self._device)
+        except:
+            traceback.print_exc()
 
     def setup(self) -> None:
         super().setup()
