@@ -136,7 +136,7 @@ def pad_set(index: int, device_name: str, nickname: str, mode: int):
     current = POOL[index][0]
     if current:
         raise PadInUse(index, current)
-    POOL[index] = make_pad(f"{device_name}-{index}", mode), nickname, ''
+    POOL[index] = make_pad(f"{device_name}-{index} (mode={mode})", mode), nickname, ''
 
 
 def pad_clear(index: int, expect: Optional[uinput.Device] = None):
