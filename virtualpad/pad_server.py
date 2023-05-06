@@ -156,12 +156,14 @@ class PadHandler(IndexedHandler):
             self._device = None
 
     def handle(self) -> None:
+        device = self._device
         try:
             while self._device:
                 try:
                     buffer = self.rfile.read(1)
-                except socket.timeout:
-                    continue
+                except ConnectionResetError:
+                    # In this case, the socket died.
+                    return
 
                 if not buffer:
                     return
@@ -169,7 +171,7 @@ class PadHandler(IndexedHandler):
                 length = buffer[0]
                 if length < N_BUTTONS:
                     commands = self.rfile.read(length * 2)
-                    if len(commands) != length:
+                    if len(commands) != length * 2:
                         self.wfile.write(COMMAND_LENGTH_MISMATCH)
                     self._process_events(commands)
                 elif length == CLOSE_CONNECTION:
@@ -178,10 +180,11 @@ class PadHandler(IndexedHandler):
                 elif length == PING:
                     self._has_ping = True
                     pass
-
         except PadMismatch:
             pass
         finally:
+            if device:
+                pad_clear(self._pad_index, device)
             self._device = None
 
     def finish(self) -> None:
