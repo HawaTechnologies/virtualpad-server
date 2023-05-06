@@ -4,15 +4,25 @@ import uinput
 
 
 MAX_PAD_COUNT = 8
+PAD_MODES = 2
 
 
-def make_pad(name: str):
+def make_pad(name: str, mode: int = 0):
     """
     Builds a pad device.
+    :param mode: The pad mode (either 0 or 1, being 1 the
+      one typically compatible with the modern pads).
     :param name: The name to use.
     """
 
-    events = (
+    axes = (
+        uinput.ABS_X + (0, 255, 0, 0),
+        uinput.ABS_Y + (0, 255, 0, 0),
+        uinput.ABS_RX + (0, 255, 0, 0),
+        uinput.ABS_RY + (0, 255, 0, 0),
+    )
+
+    events = [(
         uinput.BTN_NORTH,
         uinput.BTN_EAST,
         uinput.BTN_SOUTH,
@@ -26,14 +36,12 @@ def make_pad(name: str):
         uinput.BTN_DPAD_UP,
         uinput.BTN_DPAD_DOWN,
         uinput.BTN_DPAD_LEFT,
-        uinput.BTN_DPAD_RIGHT,
-        uinput.ABS_X + (0, 255, 0, 0),
-        uinput.ABS_Y + (0, 255, 0, 0),
-        uinput.ABS_RX + (0, 255, 0, 0),
-        uinput.ABS_RY + (0, 255, 0, 0),
-    )
+        uinput.BTN_DPAD_RIGHT
+    ) + axes, tuple(
+        (0x01, k) for k in range(0x120, 0x12a)
+    ) + axes + ((0x04, 0x04),)]
     return uinput.Device(
-        events, name=name
+        events[mode], name=name
     )
 
 
@@ -55,28 +63,11 @@ BTN_UP = 10
 BTN_DOWN = 11
 BTN_LEFT = 12
 BTN_RIGHT = 13
-
-
-_MAPPED_EVENTS: List[Tuple[int, int]] = [
-    uinput.BTN_NORTH,
-    uinput.BTN_EAST,
-    uinput.BTN_SOUTH,
-    uinput.BTN_WEST,
-    uinput.BTN_TL,
-    uinput.BTN_TR,
-    uinput.BTN_TL2,
-    uinput.BTN_TR2,
-    uinput.BTN_SELECT,
-    uinput.BTN_START,
-    uinput.BTN_DPAD_UP,
-    uinput.BTN_DPAD_DOWN,
-    uinput.BTN_DPAD_LEFT,
-    uinput.BTN_DPAD_RIGHT,
-    uinput.ABS_X,
-    uinput.ABS_Y,
-    uinput.ABS_RX,
-    uinput.ABS_RY
-]
+# Axes use 0 .. 255.
+ABS_X = 14
+ABS_Y = 15
+ABS_RX = 16
+ABS_RY = 17
 
 
 class PadException(Exception):
@@ -126,19 +117,20 @@ def pad_get(index: int):
     return POOL[index] or (None, None, None)
 
 
-def pad_set(index: int, device_name: str, nickname: str):
+def pad_set(index: int, device_name: str, nickname: str, mode: int):
     """
     Sets one of the pool elements to a new device.
     :param index: The device index to start.
     :param device_name: The device name (internal to the OS).
     :param nickname: The associated nickname.
+    :param mode: The joypad mode.
     """
 
     _check_index(index)
     current = POOL[index][0]
     if current:
         raise PadInUse(index, current)
-    POOL[index] = make_pad(f"{device_name}-{index}"), nickname, ''
+    POOL[index] = make_pad(f"{device_name}-{index}", mode), nickname, ''
 
 
 def pad_clear(index: int, expect: Optional[uinput.Device] = None):
@@ -167,21 +159,114 @@ def pads_teardown():
         POOL[index] = (None, None, _regenerate_password())
 
 
-def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]]):
+def _pad_send_all_mode0(device: uinput.Device, events: List[Tuple[int, int]]):
+    """
+    Sends events mapping in "mode 0": Each button (even d-pad buttons) will
+    be sent as {1, 0}, and each axis will be sent as [0 .. 255].
+    :param device: The device to send events to.
+    :param events: The events.
+    """
+
+    mapped_events = [
+        uinput.BTN_NORTH,
+        uinput.BTN_EAST,
+        uinput.BTN_SOUTH,
+        uinput.BTN_WEST,
+        uinput.BTN_TL,
+        uinput.BTN_TR,
+        uinput.BTN_TL2,
+        uinput.BTN_TR2,
+        uinput.BTN_SELECT,
+        uinput.BTN_START,
+        uinput.BTN_DPAD_UP,
+        uinput.BTN_DPAD_DOWN,
+        uinput.BTN_DPAD_LEFT,
+        uinput.BTN_DPAD_RIGHT,
+        uinput.ABS_X,
+        uinput.ABS_Y,
+        uinput.ABS_RX,
+        uinput.ABS_RY
+    ]
+
+    for event, value in events:
+        if event < 14:
+            device.emit(mapped_events[event], 1 if value else 0, syn=False)
+        else:
+            device.emit(mapped_events[event], int(min(255, max(0, value))))
+    device.syn()
+
+
+def _pad_send_all_mode1(device: uinput.Device, events: List[Tuple[int, int]]):
+    """
+    Sends events mapping in "mode 1": Each non-d-pad button will be mapped
+    to a value in [288 .. 298), each axis will be sent as [0 .. 255] and
+    each d-pad button will change axes to 0, 127, or 255 respectively.
+    :param device: The device to send events to.
+    :param events: The events.
+    """
+
+    mapped_axes = [
+        uinput.ABS_X,
+        uinput.ABS_Y,
+        uinput.ABS_RX,
+        uinput.ABS_RY
+    ]
+
+    # Whether the ABS_X or ABS_Y axes (respectively) were
+    # explicitly sent or not.
+    abs_x_forced = False
+    abs_y_forced = False
+    # Changes to the axes (only apply while the _forced are
+    # not set).
+    abs_x_changes = None
+    abs_y_changes = None
+
+    for event, value in events:
+        if event < 10:
+            # Sending the button as-is, but also with a SCAN event.
+            device.emit((0x04, 0x04), 0x90001 + event, syn=False)
+            device.emit((0x01, 0x120 + event), 1 if value else 0, syn=False)
+        elif event < 14:
+            # Adding an axis change in the proper direction.
+            if event == BTN_UP:
+                abs_y_changes = (abs_y_changes or set()) + {[127, 0][value]}
+            elif event == BTN_DOWN:
+                abs_y_changes = (abs_y_changes or set()) + {[127, 255][value]}
+            elif event == BTN_LEFT:
+                abs_x_changes = (abs_x_changes or set()) + {[127, 255][value]}
+            elif event == BTN_RIGHT:
+                abs_x_changes = (abs_x_changes or set()) + {[127, 0][value]}
+        else:
+            # If ABS_X or ABS_Y is pressed, it will force whatever the D-Pad
+            # expresses in its 2 (corresponding) directions.
+            if event == ABS_X:
+                abs_x_forced = True
+            if event == ABS_Y:
+                abs_y_forced = True
+            device.emit(mapped_axes[event - 14], int(min(255, max(0, value))))
+    # Check whether ABS_X was not forced and there are
+    # D-Pad changes in the X axis. If there are, force
+    # either the middle or the only specified direction
+    # set in the axis.
+    if not abs_x_forced and abs_x_changes is not None:
+        abs_x_changes -= {127}
+        device.emit(uinput.ABS_X, abs_x_changes.pop() if len(abs_x_changes) == 1 else 127)
+    # The same, but the axis Y.
+    if not abs_y_forced and abs_y_changes is not None:
+        abs_x_changes -= {127}
+        device.emit(uinput.ABS_Y, abs_y_changes.pop() if len(abs_y_changes) == 1 else 127)
+    device.syn()
+
+
+def _pad_send_all(device: uinput.Device, events: List[Tuple[int, int]], mode: int = 0):
     """
     Sends all the events to the device, atomically.
     :param device: The device to send the events to.
     :param events: The events to send.
+    :param mode: The joypad mode.
     """
 
-    # Pass all the commands as events using syn=True, then
-    # after the last one just call .syn().
-    print("Sending events...")
-    for event, value in events:
-        print(f"Event: {_MAPPED_EVENTS[event]} -> {value}")
-        device.emit(_MAPPED_EVENTS[event], value, syn=False)
-    print("Syncing...")
-    device.syn()
+    [_pad_send_all_mode0, _pad_send_all_mode1][mode](device, events)
 
 
 def pad_send_all(index: int, events: List[Tuple[int, int]], expect: Optional[uinput.Device] = None):
