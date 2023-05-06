@@ -235,13 +235,13 @@ def _pad_send_all_mode1(device: uinput.Device, events: List[Tuple[int, int]]):
         elif event < 14:
             # Adding an axis change in the proper direction.
             if event == BTN_UP:
-                abs_y_changes = (abs_y_changes or set()) + {[127, 0][value]}
+                abs_y_changes = (abs_y_changes or set()) | {[127, 0][value]}
             elif event == BTN_DOWN:
-                abs_y_changes = (abs_y_changes or set()) + {[127, 255][value]}
+                abs_y_changes = (abs_y_changes or set()) | {[127, 255][value]}
             elif event == BTN_LEFT:
-                abs_x_changes = (abs_x_changes or set()) + {[127, 255][value]}
+                abs_x_changes = (abs_x_changes or set()) | {[127, 255][value]}
             elif event == BTN_RIGHT:
-                abs_x_changes = (abs_x_changes or set()) + {[127, 0][value]}
+                abs_x_changes = (abs_x_changes or set()) | {[127, 0][value]}
         else:
             # If ABS_X or ABS_Y is pressed, it will force whatever the D-Pad
             # expresses in its 2 (corresponding) directions.
@@ -256,11 +256,11 @@ def _pad_send_all_mode1(device: uinput.Device, events: List[Tuple[int, int]]):
     # set in the axis.
     if not abs_x_forced and abs_x_changes is not None:
         abs_x_changes -= {127}
-        device.emit(uinput.ABS_X, abs_x_changes.pop() if len(abs_x_changes) == 1 else 127)
+        device.emit(uinput.ABS_X, abs_x_changes.pop() if len(abs_x_changes) == 1 else 127, syn=False)
     # The same, but the axis Y.
     if not abs_y_forced and abs_y_changes is not None:
-        abs_x_changes -= {127}
-        device.emit(uinput.ABS_Y, abs_y_changes.pop() if len(abs_y_changes) == 1 else 127)
+        abs_y_changes -= {127}
+        device.emit(uinput.ABS_Y, abs_y_changes.pop() if len(abs_y_changes) == 1 else 127, syn=False)
     device.syn()
 
 
