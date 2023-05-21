@@ -185,6 +185,7 @@ class PadHandler(IndexedHandler):
                     commands = self.rfile.read(length * 2)
                     if len(commands) != length * 2:
                         self.wfile.write(COMMAND_LENGTH_MISMATCH)
+                        return
                     self._process_events(commands)
                 elif length == CLOSE_CONNECTION:
                     pad_clear(self._pad_index)
