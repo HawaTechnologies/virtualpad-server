@@ -6,8 +6,7 @@ from typing import Type, Union, Dict, Any
 from virtualpad.base_server import IndexedUnixServer, IndexedHandler, launch_server
 from virtualpad.broadcast_server import launch_broadcast_server
 from virtualpad.pad_server import launch_pad_server
-from virtualpad.pads import pad_clear, POOL, pads_teardown
-
+from virtualpad.pads import pad_clear, POOL, pads_teardown, pad_get_passwords, pad_regenerate_passwords
 
 LOGGER = logging.getLogger("hawa.virtualpad.main-server")
 LOGGER.setLevel(logging.INFO)
@@ -87,9 +86,17 @@ class MainHandler(IndexedHandler):
                 self._send({"type": "response", "code": "pad:ok"})
                 self._broadcast({"type": "notification", "code": "pad:all-cleared"})
             elif command == "pad:status":
-                self._send({"type": "response", "code": "pad:status", "value": [
-                    entry[1:] for entry in POOL
-                ]})
+                self._send({"type": "response", "code": "pad:status", "value": {
+                    "pads": [entry[1:] for entry in POOL],
+                    "passwords": pad_get_passwords()
+                }})
+            elif command == "pad:reset-passwords":
+                pad_regenerate_passwords(*payload.get("indices", ()))
+                self._send({"type": "response", "code": "ok", "value": {
+                    "passwords": pad_get_passwords()
+                }})
+            else:
+                self._send({"type": "response", "code": "unknown-command", "value": command})
         except:
             LOGGER.exception("An error on command processing has occurred!")
 

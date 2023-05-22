@@ -58,6 +58,8 @@ def main():
     clear_parser.add_argument("number", type=int, choices=range(8), help="Gamepad number (0-7)")
     pad_subparsers.add_parser("clear-all", help="Clear all gamepads")
     pad_subparsers.add_parser("status", help="Get gamepad status")
+    reset_passwords = pad_subparsers.add_parser("reset-passwords", help="Resets passwords for all or given pads")
+    reset_passwords.add_argument("indices", nargs='*', type=int, choices=range(8), help="Gamepad number (0-7)")
 
     args = parser.parse_args()
 
@@ -75,12 +77,13 @@ def main():
     elif command == "pad":
         subcommand = args.pad_command
         if subcommand == "clear":
-            number = args.number
-            _send_command({"command": "pad:clear", "index": number})
+            _send_command({"command": "pad:clear", "index": args.number})
         elif subcommand == "clear-all":
             _send_command({"command": "pad:clear-all"})
         elif subcommand == "status":
             _send_command({"command": "pad:status"})
+        elif subcommand == "reset-passwords":
+            _send_command({"command": "pad:reset-passwords", "indices": args.indices})
         else:
             LOGGER.error("Invalid pad sub-command. Use arguments: `pad -h` to get proper help")
     else:

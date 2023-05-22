@@ -1,5 +1,4 @@
 import json
-import socket
 import time
 import logging
 import threading
@@ -8,7 +7,8 @@ import traceback
 from typing import Any, Type, Tuple
 from virtualpad.base_server import IndexedTCPServer, IndexedHandler, launch_server_in_thread
 from virtualpad.broadcast_server import BroadcastServer
-from virtualpad.pads import MAX_PAD_COUNT, pad_get, pad_send_all, pad_set, pad_clear, PadMismatch, PAD_MODES
+from virtualpad.pads import MAX_PAD_COUNT, pad_get, pad_send_all, pad_set, pad_clear, PadMismatch, PAD_MODES, \
+    pad_check_password
 
 
 # Logger and settings.
@@ -62,7 +62,7 @@ def _pad_auth(remote: socketserver.StreamRequestHandler):
     if entry[0]:
         remote.wfile.write(PAD_BUSY)
         return False, None, None, None
-    if attempted != entry[2]:
+    if pad_check_password(index, attempted):
         remote.wfile.write(LOGIN_FAILURE)
         return False, None, None, None
     remote.wfile.write(LOGIN_SUCCESS)

@@ -1,3 +1,4 @@
+import json
 import random
 import traceback
 from typing import List, Optional, Tuple
@@ -6,6 +7,7 @@ import uinput
 
 MAX_PAD_COUNT = 8
 PAD_MODES = 2
+SETTINGS_PATH = "/etc/Hawa/virtualpad-server.conf"
 
 
 def make_pad(name: str, mode: int = 0):
@@ -51,7 +53,9 @@ def make_pad(name: str, mode: int = 0):
     return device
 
 
-POOL: List[Tuple[Optional[uinput.Device], Optional[str], Optional[str]]] = [(None, None, '')] * MAX_PAD_COUNT
+# Each pad entry will only account for the current device and the nickname.
+# The password will be retrieved (and handled) from elsewhere.
+POOL: List[Tuple[Optional[uinput.Device], Optional[str]]] = [(None, None)] * MAX_PAD_COUNT
 
 
 # Buttons use 0, 1.
@@ -112,15 +116,79 @@ def _regenerate_password():
     return ''.join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(4))
 
 
+def _load_settings():
+    """
+    Loads the current VirtualPad settings.
+    :returns: The settings.
+    """
+
+    try:
+        with open(SETTINGS_PATH, 'r') as f:
+            return json.load(f)
+    except OSError:
+        settings = {
+            "passwords": [_regenerate_password() for _ in range(8)]
+        }
+        _save_settings(settings)
+        return settings
+
+
+def _save_settings(settings):
+    """
+    Saves the current VirtualPad settings.
+    :param settings: The settings to save.
+    """
+
+    with open(SETTINGS_PATH, 'r') as f:
+        return json.load(f)
+
+
+def pad_check_password(index: int, password: str):
+    """
+    Checks whether the password matches for the pad.
+    :param index: The pad index.
+    :param password: The pad password.
+    :return: Whether it matches or not.
+    """
+
+    _check_index(index)
+    return password == _load_settings()["passwords"][index]
+
+
+def pad_regenerate_passwords(*args):
+    """
+    Regenerates the passwords for the specified pads.
+    :param args: The list of pads to regenerate the passwords from.
+      If empty, all the pads' passwords will be regenerated.
+    """
+
+    if not args:
+        args = tuple(range(8))
+    settings = _load_settings()
+    for index in args:
+        _check_index(index)
+        settings["passwords"][index] = _regenerate_password()
+    _save_settings(settings)
+
+
+def pad_get_passwords():
+    """
+    Gets all the passwords to be rendered on screen.
+    :return: All the passwords.
+    """
+
+    return _load_settings()["passwords"]
+
+
 def pad_get(index: int):
     """
     Gets a gamepad at an index.
     :param index: The index of the gamepad to get.
-    :return: The (gamepad, nickname) pair, if any, or None.
+    :return: The (gamepad, nickname) pair, if any, or (None, None).
     """
 
     _check_index(index)
-    return POOL[index] or (None, None, None)
+    return POOL[index]
 
 
 def pad_set(index: int, device_name: str, nickname: str, mode: int):
@@ -136,7 +204,7 @@ def pad_set(index: int, device_name: str, nickname: str, mode: int):
     current = POOL[index][0]
     if current:
         raise PadInUse(index, current)
-    POOL[index] = make_pad(f"{device_name}-{index} (mode={mode})", mode), nickname, ''
+    POOL[index] = make_pad(f"{device_name}-{index} (mode={mode})", mode), nickname
 
 
 def pad_clear(index: int, expect: Optional[uinput.Device] = None):
@@ -151,7 +219,7 @@ def pad_clear(index: int, expect: Optional[uinput.Device] = None):
     if not current or not current[0]:
         raise PadNotInUse(index)
     if not expect or current[0] == expect:
-        POOL[index] = (None, None, _regenerate_password())
+        POOL[index] = (None, None)
 
 
 def pads_teardown():
@@ -162,7 +230,7 @@ def pads_teardown():
     for index, item in enumerate(POOL):
         if item[0]:
             item[0].destroy()
-        POOL[index] = (None, None, _regenerate_password())
+        POOL[index] = (None, None)
 
 
 def _pad_send_all_mode0(device: uinput.Device, events: List[Tuple[int, int]]):
