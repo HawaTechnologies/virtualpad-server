@@ -8,9 +8,11 @@ from virtualpad.broadcast_server import launch_broadcast_server
 from virtualpad.pad_server import launch_pad_server
 from virtualpad.pads import pad_clear, POOL, pads_teardown, pad_get_passwords, pad_regenerate_passwords
 
+
 LOGGER = logging.getLogger("hawa.virtualpad.main-server")
 LOGGER.setLevel(logging.INFO)
 MAIN_BINDING = os.path.expanduser("~/.config/Hawa/admin.sock")
+GROUP = "hawamgmt"
 
 
 class MainServerState:
@@ -125,6 +127,8 @@ class MainServer(IndexedUnixServer):
 
     def server_activate(self) -> None:
         super().server_activate()
+        os.system(f"chgrp {GROUP} {MAIN_BINDING}")
+        os.system(f"chmod g+rw {MAIN_BINDING}")
         self._settings = _STATES.setdefault(self, MainServerState())
         self._settings.broadcast_server = launch_broadcast_server()
         self._settings.pad_server = launch_pad_server(self._settings.broadcast_server)
