@@ -4,43 +4,41 @@ A virtual pad server. It allows a console to host up to 8 virtual gamepads and e
 
 ## Installation
 
-First, ensure the /dev/uinput device is owned by root:input, and that input users can read and write:
+Ensure you run this server always in the context of `root` user.
 
-    sudo chown root:input /dev/uinput
-    sudo chmod g+rwx /dev/uinput
-
-Alternatively, create a system boot file (e.g. /etc/udev/rules.d/99-uinput.rules) with the following lines:
-
-    KERNEL=="uinput", MODE="0660", GROUP="input", OPTIONS+="static_node=uinput"
-
-(the advantage with this is that no explicit code is needed in a custom script everytime)
-
-Then, ensure you run this server in the context of a user belonging to the input group:
-
-    sudo usermod -aG input {username}
-
-Also, ensure the proper packages are installed. Either use virtualenv or `sudo apt install python-pip`:
+Ensure the proper packages are installed. Either use virtualenv or `sudo apt install python-pip`:
 
     pip install -r requirements.txt
 
-Then, run the server:
+Then, run the server always in the context of `root` user (or sudo):
 
-    ./virtualpad-server
+    sudo ./virtualpad-server
 
-Or perhaps running it as a service owned by {username} (e.g. /etc/systemd/system/hawa-virtualpad.service):
+Or perhaps running it as a service owned by root (e.g. create the /etc/systemd/system/hawa-virtualpad.service file):
 
     [Unit]
     Description=Hawa VirtualPad
     After=network.target
 
     [Service]
-    User=username
-    Group=username
+    User=root
+    Group=root
     WorkingDirectory=/opt/Hawa/virtualpad
     ExecStart=/opt/Hawa/virtualpad/virtualpad-server
     Restart=always
 
     [Install]
     WantedBy=multi-user.target
+
+Finally, ensure `virtualpad-admin` is owned by the group `hawamgmt`.
+
+    sudo groupadd hawamgmt
+    sudo ln -s /opt/Hawa/virtualpad/virtualpad-admin /usr/local/bin/virtualpad-admin
+    sudo chmod ug+rx /opt/Hawa/virtualpad/virtualpad-admin
+    sudo chgrp hawamgmt /opt/Hawa/virtualpad/virtualpad-admin
+
+All the users that will be able to access the virtualpad-admin app must belong to that group:
+
+    sudo usermod -aG hawamgmt {username}
 
 This code assumes this codebase is installed into `/opt/Hawa/virtualpad`.
