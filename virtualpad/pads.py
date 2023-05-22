@@ -148,7 +148,7 @@ def pad_clear(index: int, expect: Optional[uinput.Device] = None):
 
     _check_index(index)
     current = POOL[index]
-    if not current:
+    if not current or not current[0]:
         raise PadNotInUse(index)
     if not expect or current[0] == expect:
         POOL[index] = (None, None, _regenerate_password())
