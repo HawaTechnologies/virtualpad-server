@@ -61,7 +61,7 @@ def _pad_auth(remote: socketserver.StreamRequestHandler):
     if entry[0]:
         remote.wfile.write(PAD_BUSY)
         return False, None, None, None
-    if pad_check_password(index, attempted):
+    if not pad_check_password(index, attempted):
         remote.wfile.write(LOGIN_FAILURE)
         return False, None, None, None
     remote.wfile.write(LOGIN_SUCCESS)
@@ -76,9 +76,9 @@ class PadHandler(IndexedHandler):
         self._nickname = None
         self._mode = None
         self._device = None
-        super().__init__(request, client_address, server)
         if not isinstance(server, PadServer):
             raise ValueError("Only a MainServer (or subclasses) can use a PadHandler")
+        super().__init__(request, client_address, server)
 
     def _send(self, obj):
         self.wfile.write(f"{json.dumps(obj)}\n".encode("utf-8"))
@@ -195,9 +195,13 @@ class PadHandler(IndexedHandler):
                     pass
         except PadMismatch:
             pass
+        except Exception as e:
+            traceback.print_exc()
+            raise
         finally:
             try:
-                pad_clear(self._pad_index, device)
+                if self._device:
+                    pad_clear(self._pad_index, device)
             except PadNotInUse:
                 pass
             self._device = None
