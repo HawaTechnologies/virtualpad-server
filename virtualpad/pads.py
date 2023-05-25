@@ -1,4 +1,5 @@
 import json
+import os
 import random
 import traceback
 from typing import List, Optional, Tuple
@@ -139,8 +140,9 @@ def _save_settings(settings):
     :param settings: The settings to save.
     """
 
-    with open(SETTINGS_PATH, 'r') as f:
-        return json.load(f)
+    os.makedirs(os.path.dirname(SETTINGS_PATH), 0o700, exist_ok=True)
+    with open(SETTINGS_PATH, 'w') as f:
+        return json.dump(settings, f)
 
 
 def pad_check_password(index: int, password: str):

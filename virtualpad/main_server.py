@@ -11,7 +11,7 @@ from virtualpad.pads import pad_clear, POOL, pads_teardown, pad_get_passwords, p
 
 LOGGER = logging.getLogger("hawa.virtualpad.main-server")
 LOGGER.setLevel(logging.INFO)
-MAIN_BINDING = os.path.expanduser("~/.config/Hawa/admin.sock")
+MAIN_BINDING = os.path.expanduser("/run/Hawa/admin.sock")
 GROUP = "hawamgmt"
 
 
@@ -121,14 +121,16 @@ class MainServer(IndexedUnixServer):
             os.unlink(server_address)
         except:
             pass
+        self._settings = None
+        os.makedirs(os.path.dirname(server_address), 0o755, exist_ok=True)
         print(f"Binding main server to: {server_address}")
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
-        self._settings = None
 
     def server_activate(self) -> None:
         super().server_activate()
         os.system(f"chgrp {GROUP} {MAIN_BINDING}")
         os.system(f"chmod g+rw {MAIN_BINDING}")
+        os.system(f"chmod o-rwx {MAIN_BINDING}")
         self._settings = _STATES.setdefault(self, MainServerState())
         self._settings.broadcast_server = launch_broadcast_server()
         self._settings.pad_server = launch_pad_server(self._settings.broadcast_server)

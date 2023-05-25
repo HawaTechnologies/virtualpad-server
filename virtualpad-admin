@@ -14,9 +14,7 @@ Ensure this file has permissions 0o550 (only user, only read-execute) and group 
 logging.basicConfig()
 LOGGER = logging.getLogger("virtualpad-admin")
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
-_FIFO_PATH = f"/home/{START_USER}/.config/Hawa/run"
-_FIFO_ADMIN_TO_SERVER = f"{_FIFO_PATH}/admin-to-server"
-ADMIN_SOCKET = f"/home/{START_USER}/.config/Hawa/admin.sock"
+ADMIN_SOCKET = f"/run/Hawa/admin.sock"
 
 
 def _send_command(command):
