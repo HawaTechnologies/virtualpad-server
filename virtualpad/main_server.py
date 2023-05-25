@@ -89,7 +89,7 @@ class MainHandler(IndexedHandler):
                 self._broadcast({"type": "notification", "code": "pad:all-cleared"})
             elif command == "pad:status":
                 self._send({"type": "response", "code": "pad:status", "value": {
-                    "pads": [entry[1:] for entry in POOL],
+                    "pads": [entry[1] for entry in POOL],
                     "passwords": pad_get_passwords()
                 }})
             elif command == "pad:reset-passwords":
