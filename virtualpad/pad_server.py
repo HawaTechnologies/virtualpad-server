@@ -8,8 +8,7 @@ from typing import Any, Type, Tuple
 from virtualpad.base_server import IndexedTCPServer, IndexedHandler, launch_server_in_thread
 from virtualpad.broadcast_server import BroadcastServer
 from virtualpad.pads import MAX_PAD_COUNT, pad_get, pad_send_all, pad_set, pad_clear, PadMismatch, PAD_MODES, \
-    pad_check_password
-
+    pad_check_password, PadNotInUse
 
 # Logger and settings.
 LOGGER = logging.getLogger("hawa.virtualpad.pad-server")
@@ -126,7 +125,7 @@ class PadHandler(IndexedHandler):
         self._broadcast({"type": "notification", "command": "pad:set", "nickname": self._nickname,
                          "index": self._pad_index})
         entry = pad_get(self._pad_index)
-        device, _, _ = entry
+        device, _ = entry
         self._device = device
         # Launching the heartbeat.
         threading.Thread(target=self._heartbeat).start()
@@ -189,6 +188,7 @@ class PadHandler(IndexedHandler):
                     self._process_events(commands)
                 elif length == CLOSE_CONNECTION:
                     pad_clear(self._pad_index)
+                    device = None
                     return
                 elif length == PING:
                     self._has_ping = True
@@ -196,8 +196,10 @@ class PadHandler(IndexedHandler):
         except PadMismatch:
             pass
         finally:
-            if device:
+            try:
                 pad_clear(self._pad_index, device)
+            except PadNotInUse:
+                pass
             self._device = None
 
     def finish(self) -> None:
