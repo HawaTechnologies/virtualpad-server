@@ -23,6 +23,7 @@ PAD_MODE_INVALID = bytes([3])
 PAD_BUSY = bytes([4])
 TERMINATED = bytes([5])
 COMMAND_LENGTH_MISMATCH = bytes([6])
+PONG = bytes([7])
 
 # This variable checks whether the pad responded to the last ping command
 # or not (this is checked per-pad).
@@ -103,7 +104,7 @@ class PadHandler(IndexedHandler):
 
     def _heartbeat(self) -> None:
         """
-        Hearthbeat for the joypad.
+        Heartbeat for the gamepad.
         """
 
         while self._device and self._device == pad_get(self._pad_index)[0]:
@@ -113,7 +114,10 @@ class PadHandler(IndexedHandler):
             else:
                 if self._pad_index:
                     self._broadcast({"type": "notification", "command": "pad:timeout", "index": self._pad_index})
-                    pad_clear(self._pad_index, self._device)
+                    try:
+                        pad_clear(self._pad_index, self._device)
+                    except PadNotInUse:
+                        pass
                 self._device = None
                 break
 
@@ -194,6 +198,7 @@ class PadHandler(IndexedHandler):
                     return
                 elif length == PING:
                     self._has_ping = True
+                    self.wfile.write(PONG)
                     pass
         except PadMismatch:
             pass
