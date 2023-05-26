@@ -266,10 +266,15 @@ def _pad_send_all_mode0(device: uinput.Device, events: List[Tuple[int, int]]):
 
     for event, value in events:
         if event < 14:
-            device.emit(mapped_events[event], 1 if value else 0, syn=False)
+            _emit(device, mapped_events[event], 1 if value else 0, syn=False)
         else:
-            device.emit(mapped_events[event], int(min(255, max(0, value))))
+            _emit(device, mapped_events[event], int(min(255, max(0, value))), syn=False)
     device.syn()
+
+
+def _emit(device, key, value):
+    print(f"Emitting pair: ({key}, {value})")
+    device.emit(key, value, syn=False)
 
 
 def _pad_send_all_mode1(device: uinput.Device, events: List[Tuple[int, int]]):
@@ -300,8 +305,8 @@ def _pad_send_all_mode1(device: uinput.Device, events: List[Tuple[int, int]]):
     for event, value in events:
         if event < 10:
             # Sending the button as-is, but also with a SCAN event.
-            device.emit((0x04, 0x04), 0x90001 + event, syn=False)
-            device.emit((0x01, 0x120 + event), 1 if value else 0, syn=False)
+            _emit(device, (0x04, 0x04), 0x90001 + event)
+            _emit(device, (0x01, 0x120 + event), 1 if value else 0)
         elif event < 14:
             # Adding an axis change in the proper direction.
             if event == BTN_UP:
@@ -319,18 +324,18 @@ def _pad_send_all_mode1(device: uinput.Device, events: List[Tuple[int, int]]):
                 abs_x_forced = True
             if event == ABS_Y:
                 abs_y_forced = True
-            device.emit(mapped_axes[event - 14], int(min(255, max(0, value))))
+            _emit(device, mapped_axes[event - 14], int(min(255, max(0, value))))
     # Check whether ABS_X was not forced and there are
     # D-Pad changes in the X axis. If there are, force
     # either the middle or the only specified direction
     # set in the axis.
     if not abs_x_forced and abs_x_changes is not None:
         abs_x_changes -= {127}
-        device.emit(uinput.ABS_X, abs_x_changes.pop() if len(abs_x_changes) == 1 else 127, syn=False)
+        _emit(device, uinput.ABS_X, abs_x_changes.pop() if len(abs_x_changes) == 1 else 127)
     # The same, but the axis Y.
     if not abs_y_forced and abs_y_changes is not None:
         abs_y_changes -= {127}
-        device.emit(uinput.ABS_Y, abs_y_changes.pop() if len(abs_y_changes) == 1 else 127, syn=False)
+        _emit(device, uinput.ABS_Y, abs_y_changes.pop() if len(abs_y_changes) == 1 else 127)
     device.syn()
 
 
