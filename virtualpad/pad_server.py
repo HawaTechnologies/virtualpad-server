@@ -30,8 +30,8 @@ _HEARTBEAT_INTERVAL = 5
 
 # Buttons are: D-Pad (4), B-Pad (4), Shoulders (4), Start/Select (2) and axes (4).
 N_BUTTONS = 18
-CLOSE_CONNECTION = N_BUTTONS + 0
-PING = N_BUTTONS + 1
+CLOSE_CONNECTION = N_BUTTONS + 1
+PING = N_BUTTONS + 2
 
 
 def _pad_auth(remote: socketserver.StreamRequestHandler):
@@ -111,9 +111,11 @@ class PadHandler(IndexedHandler):
             if self._has_ping:
                 self._has_ping = False
             else:
-                self._broadcast({"type": "notification", "command": "pad:timeout", "index": self._pad_index})
-                pad_clear(self._pad_index, self._device)
+                if self._pad_index:
+                    self._broadcast({"type": "notification", "command": "pad:timeout", "index": self._pad_index})
+                    pad_clear(self._pad_index, self._device)
                 self._device = None
+                break
 
     def _init_pad(self) -> None:
         """
