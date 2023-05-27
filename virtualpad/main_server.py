@@ -123,7 +123,7 @@ class MainServer(IndexedUnixServer):
             pass
         self._settings = None
         os.makedirs(os.path.dirname(server_address), 0o755, exist_ok=True)
-        print(f"Binding main server to: {server_address}")
+        LOGGER.info(f"Binding main server to: {server_address}")
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
 
     def server_activate(self) -> None:

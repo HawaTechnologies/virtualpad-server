@@ -24,6 +24,7 @@ PAD_BUSY = bytes([4])
 TERMINATED = bytes([5])
 COMMAND_LENGTH_MISMATCH = bytes([6])
 PONG = bytes([7])
+TIMEOUT = bytes([8])
 
 # This variable checks whether the pad responded to the last ping command
 # or not (this is checked per-pad).
@@ -112,9 +113,10 @@ class PadHandler(IndexedHandler):
             if self._has_ping:
                 self._has_ping = False
             else:
-                if self._pad_index:
+                if self._pad_index is not None:
                     self._broadcast({"type": "notification", "command": "pad:timeout", "index": self._pad_index})
                     try:
+                        self.wfile.write(TIMEOUT)
                         pad_clear(self._pad_index, self._device)
                     except PadNotInUse:
                         pass

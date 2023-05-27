@@ -45,7 +45,10 @@ def make_pad(name: str, mode: int = 0):
         (0x01, k) for k in range(0x120, 0x12a)
     ) + axes + ((0x04, 0x04),)]
     device = uinput.Device(
-        events[mode], name=name
+        # bustype=virtual
+        # vendor=0x2357 (I deliberately picked this one)
+        # product_id=0x1
+        events[mode], name=name, bustype=0x06, vendor=0x2357, product=0x1, version=mode
     )
     device.emit(uinput.ABS_X, 127, syn=False)
     device.emit(uinput.ABS_Y, 127, syn=False)
@@ -218,9 +221,10 @@ def pad_clear(index: int, expect: Optional[uinput.Device] = None):
 
     _check_index(index)
     current = POOL[index]
-    if not current or not current[0]:
+    if not current[0]:
         raise PadNotInUse(index)
     if not expect or current[0] == expect:
+        current[0].destroy()
         POOL[index] = (None, None)
 
 
@@ -273,7 +277,6 @@ def _pad_send_all_mode0(device: uinput.Device, events: List[Tuple[int, int]]):
 
 
 def _emit(device, key, value):
-    print(f"Emitting pair: ({key}, {value})")
     device.emit(key, value, syn=False)
 
 
@@ -362,7 +365,6 @@ def pad_send_all(index: int, events: List[Tuple[int, int]], mode: int, expect: O
     :param expect: If not None, what device to expect.
     """
 
-    print(f"Sending all events (*): {events}")
     if expect is not None and POOL[index][0] is not expect:
         raise PadMismatch(index)
     _pad_send_all(POOL[index][0], events, mode)
