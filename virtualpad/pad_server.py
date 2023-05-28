@@ -199,6 +199,7 @@ class PadHandler(IndexedHandler):
                     device = None
                     return
                 elif length == PING:
+                    LOGGER.info(f"Remote #{self.index} ping")
                     self._has_ping = True
                     self.wfile.write(PONG)
                     pass
