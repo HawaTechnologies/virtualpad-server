@@ -7,7 +7,7 @@ import traceback
 from typing import Any, Type, Tuple
 from virtualpad.base_server import IndexedTCPServer, IndexedHandler, launch_server_in_thread
 from virtualpad.broadcast_server import BroadcastServer
-from virtualpad.pads import MAX_PAD_COUNT, pad_get, pad_send_all, pad_set, pad_clear, PadMismatch, PAD_MODES, \
+from virtualpad.pads import MAX_PAD_COUNT, pad_get, pad_send_all, pad_set, pad_clear, PadMismatch, \
     pad_check_password, PadNotInUse
 
 # Logger and settings.
@@ -19,7 +19,6 @@ PAD_PORT = 2357
 LOGIN_SUCCESS = bytes([0])
 LOGIN_FAILURE = bytes([1])
 PAD_INVALID = bytes([2])
-PAD_MODE_INVALID = bytes([3])
 PAD_BUSY = bytes([4])
 TERMINATED = bytes([5])
 COMMAND_LENGTH_MISMATCH = bytes([6])
@@ -48,14 +47,10 @@ def _pad_auth(remote: socketserver.StreamRequestHandler):
         raise Exception("Login handshake incomplete or aborted")
 
     index = read[0]
-    mode = read[1]
-    attempted = bytes(read[2:6]).decode("utf-8")
-    nickname = bytes(read[6:22]).decode("utf-8").rstrip('\b')
-    LOGGER.info(f"For index {index} and mode {mode}, '{nickname}' attempts to join")
+    attempted = bytes(read[1:5]).decode("utf-8")
+    nickname = bytes(read[5:21]).decode("utf-8").rstrip('\b')
+    LOGGER.info(f"For index {index}, '{nickname}' attempts to join")
     # Authenticating.
-    if mode not in range(PAD_MODES):
-        remote.wfile.write(PAD_MODE_INVALID)
-        return False, None, None, None
     if index >= MAX_PAD_COUNT:
         remote.wfile.write(PAD_INVALID)
         return False, None, None, None
@@ -67,7 +62,7 @@ def _pad_auth(remote: socketserver.StreamRequestHandler):
         remote.wfile.write(LOGIN_FAILURE)
         return False, None, None, None
     remote.wfile.write(LOGIN_SUCCESS)
-    return True, index, nickname, mode
+    return True, index, nickname
 
 
 class PadHandler(IndexedHandler):
@@ -76,7 +71,6 @@ class PadHandler(IndexedHandler):
         self._has_ping = False
         self._pad_index = None
         self._nickname = None
-        self._mode = None
         self._device = None
         if not isinstance(server, PadServer):
             raise ValueError("Only a MainServer (or subclasses) can use a PadHandler")
@@ -94,14 +88,13 @@ class PadHandler(IndexedHandler):
         """
 
         LOGGER.info(f"Remote #{self.index} Logging in")
-        success, index, nickname, _mode = _pad_auth(self)
+        success, index, nickname = _pad_auth(self)
         if not success:
             LOGGER.info(f"Remote #{self.index} failed to log in")
         else:
             LOGGER.info(f"Remote #{self.index} successfully logged in")
             self._pad_index = index
             self._nickname = nickname
-            self._mode = _mode
 
     def _heartbeat(self) -> None:
         """
@@ -129,7 +122,7 @@ class PadHandler(IndexedHandler):
         """
 
         # Setting the device.
-        pad_set(self._pad_index, self.server.device_name, self._nickname, self._mode)
+        pad_set(self._pad_index, self.server.device_name, self._nickname)
         self._broadcast({"type": "notification", "command": "pad:set", "nickname": self._nickname,
                          "index": self._pad_index})
         entry = pad_get(self._pad_index)
@@ -161,7 +154,7 @@ class PadHandler(IndexedHandler):
         # Send the data. If the current pad is different,
         # then this thread ends.
         try:
-            pad_send_all(self._pad_index, fixed, self._mode, self._device)
+            pad_send_all(self._pad_index, fixed, self._device)
         except:
             traceback.print_exc()
 
