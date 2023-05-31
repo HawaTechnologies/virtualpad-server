@@ -2,7 +2,7 @@ import datetime
 from enum import IntEnum
 from typing import List, Tuple
 from .constants import SLOTS_HEARTBEAT_TIME, SLOTS_INDICES
-from .exceptions import PadInUse, PadNotInUse
+from .exceptions import PadInUse, PadNotInUse, PadIndexOutOfRange
 from .devices import make, emit
 
 
@@ -94,6 +94,18 @@ class PadSlot:
             self._connection_index = -1
             self._last_user_stamp = datetime.datetime.now()
 
+    def emit(self, events: List[Tuple[int, int]]):
+        """
+        Emits events, if this slot is occupied.
+        :param events: The events to emit, as a list of (key, state) pairs.
+            The valid keys are defined in the `devices` file.
+        """
+
+        if self._status != self.Status.OCCUPIED:
+            raise PadNotInUse(self._pad_index)
+
+        emit(events)
+
     def heartbeat(self):
         """
         Completely releases the pad, if it is recently used and
@@ -108,18 +120,6 @@ class PadSlot:
             self._device = None  # It will be destroyed.
             return True
         return False
-
-    def emit(self, events: List[Tuple[int, int]]):
-        """
-        Emits events, if this slot is occupied.
-        :param events: The events to emit, as a list of (key, state) pairs.
-            The valid keys are defined in the `devices` file.
-        """
-
-        if self._status != self.Status.OCCUPIED:
-            raise PadNotInUse(self._pad_index)
-
-        emit(events)
 
     def serialize(self):
         """
@@ -141,6 +141,52 @@ class PadSlots:
 
     def __init__(self):
         self._slots = [PadSlot(index) for index in SLOTS_INDICES]
+
+    def occupy(self, pad_index: int, nickname: str, password: str, connection_index: int):
+        """
+        :param pad_index:
+        :param nickname:
+        :param password:
+        :param connection_index:
+        :return:
+        """
+
+    def release(self, pad_index: int, force: bool = False):
+        """
+        Releases a pad by its index.
+        :param pad_index: The index of the pad to release.
+        :param force: Whether to force-drop the device as well.
+        """
+
+        try:
+            pad = self._slots[pad_index]
+        except IndexError:
+            raise PadIndexOutOfRange(pad_index)
+
+        pad.release(force)
+
+    def emit(self, pad_index: int, events: List[Tuple[int, int]]):
+        """
+        Emits events, if the slot is occupied.
+        :param pad_index: The index of the pad that will emit the events.
+        :param events: The events to emit, as a list of (key, state) pairs.
+            The valid keys are defined in the `devices` file.
+        """
+
+        try:
+            pad = self._slots[pad_index]
+        except IndexError:
+            raise PadIndexOutOfRange(pad_index)
+
+        pad.emit(events)
+
+    def heartbeat(self):
+        """
+        Runs the heartbeat in all the pads.
+        :return: The heartbeat results.
+        """
+
+        return [pad.heartbeat() for pad in self._slots]
 
     def serialize(self):
         """
