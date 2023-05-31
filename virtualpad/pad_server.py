@@ -205,10 +205,10 @@ class PadServer(IndexedTCPServer):
 
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Type[socketserver.BaseRequestHandler],
                  bind_and_activate: bool, broadcast_server: IndexedTCPServer, slots: PadSlots):
-        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
         self._slots = slots
         self._use_heartbeat_loop = False
         self._broadcast_server = broadcast_server
+        super().__init__(server_address, RequestHandlerClass, bind_and_activate)
 
     @property
     def slots(self):
