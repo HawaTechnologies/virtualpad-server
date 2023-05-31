@@ -25,7 +25,7 @@ ABS_RX = 16
 ABS_RY = 17
 
 
-def make_pad(name: str):
+def make(name: str):
     """
     Builds a pad device.
     :param name: The name to use.
@@ -54,7 +54,7 @@ def make_pad(name: str):
     return device
 
 
-def pad_send_all(device: uinput.Device, events: List[Tuple[int, int]]):
+def emit(device: uinput.Device, events: List[Tuple[int, int]]):
     """
     Sends all the events to the device, atomically.
     :param device: The device to send the events to.
