@@ -1,0 +1,1 @@
+SLOTS_COUNT = 8
