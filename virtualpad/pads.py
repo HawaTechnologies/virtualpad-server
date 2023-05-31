@@ -10,7 +10,7 @@ MAX_PAD_COUNT = 8
 SETTINGS_PATH = "/etc/Hawa/virtualpad-server.conf"
 
 
-def make_pad(name: str):
+def _make_pad(name: str):
     """
     Builds a pad device.
     :param name: The name to use.
@@ -190,7 +190,7 @@ def pad_set(index: int, device_name: str, nickname: str):
     current = POOL[index][0]
     if current:
         raise PadInUse(index, current)
-    POOL[index] = make_pad(f"{device_name}-{index}"), nickname
+    POOL[index] = _make_pad(f"{device_name}-{index}"), nickname
 
 
 def pad_clear(index: int, expect: Optional[uinput.Device] = None):
