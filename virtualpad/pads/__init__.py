@@ -126,7 +126,7 @@ class PadSlot:
         if self._status != self.Status.OCCUPIED:
             raise PadNotInUse(self._pad_index)
 
-        emit(events)
+        emit(self._device, events)
 
     def heartbeat(self) -> bool:
         """
