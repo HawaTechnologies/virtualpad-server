@@ -2,7 +2,7 @@ import datetime
 from enum import IntEnum
 from typing import List, Tuple
 from .constants import SLOTS_HEARTBEAT_TIME, SLOTS_INDICES
-from .exceptions import PadInUse, PadNotInUse, PadIndexOutOfRange, AuthenticationFailed
+from .exceptions import PadInUse, PadNotInUse, PadIndexOutOfRange, AuthenticationFailed, PadMismatch
 from .devices import make, emit, emit_zero
 from .settings import passwords_check
 
@@ -107,7 +107,7 @@ class PadSlot:
             if self._status != self.Status.OCCUPIED:
                 raise PadNotInUse(self._pad_index)
 
-            if expect == -1 or expect == self._connection_index:
+            if expect in [-1, self._connection_index]:
                 self._status = self.Status.RECENTLY_USED
                 self._nickname = ""
                 self._connection_index = -1
@@ -220,18 +220,23 @@ class PadSlots:
         for index in SLOTS_INDICES:
             self.release(index, force=True, zero=True)
 
-    def emit(self, pad_index: int, events: List[Tuple[int, int]]):
+    def emit(self, pad_index: int, events: List[Tuple[int, int]], expect: int = -1):
         """
         Emits events, if the slot is occupied.
         :param pad_index: The index of the pad that will emit the events.
         :param events: The events to emit, as a list of (key, state) pairs.
             The valid keys are defined in the `devices` file.
+        :param expect: The connection index to expect. A mismatch between
+            this value (if != -1) and the current connection is an error.
         """
 
         try:
             pad = self._slots[pad_index]
         except IndexError:
             raise PadIndexOutOfRange(pad_index)
+
+        if expect not in [-1, pad.connection_index]:
+            raise PadMismatch(pad_index)
 
         pad.emit(events)
 
