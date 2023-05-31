@@ -139,7 +139,7 @@ class MainServer(IndexedUnixServer):
         os.system(f"chmod o-rwx {MAIN_BINDING}")
         self._settings = _STATES.setdefault(self, MainServerState())
         self._settings.broadcast_server = launch_broadcast_server()
-        self._settings.pad_server = launch_pad_server(self._settings.broadcast_server)
+        self._settings.pad_server = launch_pad_server(self._settings.broadcast_server, self._slots)
         LOGGER.info("Server started")
 
     def server_close(self) -> None:
