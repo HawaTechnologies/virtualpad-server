@@ -127,7 +127,7 @@ class PadHandler(IndexedHandler):
         :param buffer: The main full/max buffer.
         """
 
-        if not self._device:
+        if self._pad_index is None:
             return
 
         # Only changed buttons and axes will exist here.
@@ -188,7 +188,7 @@ class PadHandler(IndexedHandler):
             raise
         finally:
             try:
-                if self._pad_index:
+                if self._pad_index is not None:
                     self.slots.release(self._pad_index, False, self.index, False)
             except PadNotInUse:
                 pass
@@ -223,7 +223,7 @@ class PadServer(IndexedTCPServer):
             result = enumerate(self._slots.heartbeat())
             for pad_index, device_disposed in result:
                 if device_disposed:
-                    LOGGER.log(f"Pad #{pad_index}'s device disposed on no use")
+                    LOGGER.info(f"Pad #{pad_index}'s device disposed on no use")
             time.sleep(1)
 
     def server_activate(self) -> None:
