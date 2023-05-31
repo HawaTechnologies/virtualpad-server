@@ -18,11 +18,13 @@ BTN_UP = 10
 BTN_DOWN = 11
 BTN_LEFT = 12
 BTN_RIGHT = 13
+N_BUTTONS = 14
 # Axes use 0 .. 255.
 ABS_X = 14
 ABS_Y = 15
 ABS_RX = 16
 ABS_RY = 17
+N_AXES = 4
 
 
 def make(name: str):
@@ -52,6 +54,20 @@ def make(name: str):
     device.emit(uinput.ABS_RX, 127, syn=False)
     device.emit(uinput.ABS_RY, 127, syn=True)
     return device
+
+
+def emit_zero(device: uinput.Device):
+    """
+    Emits a release of all the input keys. This is used when doing
+    a pad release in the following conditions:
+    - Kicking the user by admin.
+    - Kicking the user by timeout.
+    - User gracefully closing.
+    :param device: The device to emit the release of all the keys.
+    """
+
+    emit(device, [(index, 0) for index in range(N_BUTTONS)] +
+                 [(index, 127) for index in range(N_BUTTONS, N_BUTTONS + N_AXES)])
 
 
 def emit(device: uinput.Device, events: List[Tuple[int, int]]):
