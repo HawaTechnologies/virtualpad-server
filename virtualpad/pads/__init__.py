@@ -3,7 +3,7 @@ from enum import IntEnum
 from typing import List, Tuple
 from .constants import SLOTS_HEARTBEAT_TIME, SLOTS_INDICES
 from .exceptions import PadInUse, PadNotInUse, PadIndexOutOfRange, AuthenticationFailed
-from .devices import make, emit
+from .devices import make, emit, emit_zero
 from .settings import passwords_check
 
 
@@ -71,7 +71,8 @@ class PadSlot:
         if self._device is None:
             self._device = make(self._name)
 
-    def release(self, force: bool = False, expect: int = -1):
+    def release(self, force: bool = False, expect: int = -1,
+                zero: bool = False):
         """
         Releases the pad.
         :param force: Whether to force-drop the device as well.
@@ -80,6 +81,7 @@ class PadSlot:
             no cleanup is done if the current connection index
             does not match the expected one (this is a silent
             failure and only when force == False).
+        :param zero: Whether to emit the zero keys or not.
         """
 
         if force:
@@ -90,6 +92,8 @@ class PadSlot:
             self._nickname = ""
             self._connection_index = -1
             self._last_user_stamp = None
+            if zero and self._device:
+                emit_zero(self._device)
             self._device = None  # It will be destroyed.
         else:
             if self._status != self.Status.OCCUPIED:
@@ -100,6 +104,9 @@ class PadSlot:
                 self._nickname = ""
                 self._connection_index = -1
                 self._last_user_stamp = datetime.datetime.now()
+                if zero:
+                    # By this point, self._device will exist.
+                    emit_zero(self._device)
 
     def emit(self, events: List[Tuple[int, int]]):
         """
@@ -167,7 +174,8 @@ class PadSlots:
 
         pad.occupy(nickname, connection_index)
 
-    def release(self, pad_index: int, force: bool = False, expect: int = -1):
+    def release(self, pad_index: int, force: bool = False, expect: int = -1,
+                zero: bool = False):
         """
         Releases a pad by its index.
         :param pad_index: The index of the pad to release.
@@ -177,6 +185,7 @@ class PadSlots:
             no cleanup is done if the current connection index
             does not match the expected one (this is a silent
             failure and only when force == False).
+        :param zero: Whether to emit the zero keys or not.
         """
 
         try:
@@ -184,7 +193,7 @@ class PadSlots:
         except IndexError:
             raise PadIndexOutOfRange(pad_index)
 
-        pad.release(force, expect)
+        pad.release(force, expect, zero)
 
     def emit(self, pad_index: int, events: List[Tuple[int, int]]):
         """
