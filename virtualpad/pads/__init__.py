@@ -40,7 +40,7 @@ class PadSlot:
         self._last_user_stamp = None
 
     @property
-    def status(self):
+    def status(self) -> Status:
         """
         The slot status.
         """
@@ -48,12 +48,20 @@ class PadSlot:
         return self._status
 
     @property
-    def nickname(self):
+    def nickname(self) -> str:
         """
         The nickname of the occupant. Only meaningful on OCCUPIED status.
         """
 
         return self._nickname
+
+    @property
+    def connection_index(self) -> int:
+        """
+        The connection index of the occupant. Only meaningful on OCCUPIED status.
+        """
+
+        return self._connection_index
 
     def occupy(self, nickname: str, connection_index: int):
         """
@@ -120,7 +128,7 @@ class PadSlot:
 
         emit(events)
 
-    def heartbeat(self):
+    def heartbeat(self) -> bool:
         """
         Completely releases the pad, if it is recently used and
         the heartbeat time has elapsed.
@@ -135,7 +143,7 @@ class PadSlot:
             return True
         return False
 
-    def serialize(self):
+    def serialize(self) -> Tuple[str, str]:
         """
         Returns the current state of this pad, as (status, nick).
         """
@@ -155,6 +163,15 @@ class PadSlots:
 
     def __init__(self):
         self._slots = [PadSlot(index) for index in SLOTS_INDICES]
+
+    def __getitem__(self, item) -> PadSlot:
+        """
+        Gets the underlying slots item(s).
+        :param item: The item(s) to retrieve.
+        :returns: The retrieved items.
+        """
+
+        return self._slots[item]
 
     def occupy(self, pad_index: int, nickname: str, password: str, connection_index: int):
         """
@@ -218,7 +235,7 @@ class PadSlots:
 
         pad.emit(events)
 
-    def heartbeat(self):
+    def heartbeat(self) -> List[bool]:
         """
         Runs the heartbeat in all the pads.
         :return: The heartbeat results.
@@ -226,7 +243,7 @@ class PadSlots:
 
         return [pad.heartbeat() for pad in self._slots]
 
-    def serialize(self):
+    def serialize(self) -> List[Tuple[str, str]]:
         """
         Serializes all the pads' current states.
         :return: The list of serialized pads' states.
