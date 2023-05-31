@@ -6,7 +6,8 @@ from typing import Type, Union, Dict, Any
 from virtualpad.base_server import IndexedUnixServer, IndexedHandler, launch_server
 from virtualpad.broadcast_server import launch_broadcast_server
 from virtualpad.pad_server import launch_pad_server
-from virtualpad.pads import pad_clear, POOL, pads_teardown, pad_get_passwords, pad_regenerate_passwords
+from virtualpad.pads import PadSlots
+from virtualpad.pads.settings import passwords_get, passwords_regenerate
 
 
 LOGGER = logging.getLogger("hawa.virtualpad.main-server")
@@ -48,6 +49,7 @@ class MainHandler(IndexedHandler):
 
     def handle(self) -> None:
         state = _STATES[self.server]
+        assert isinstance(self.server, MainServer)
 
         line = self.rfile.readline()
         if len(line) == 0:
@@ -60,9 +62,7 @@ class MainHandler(IndexedHandler):
             if command == "server:start":
                 if not state.pad_server:
                     state.pad_server = launch_pad_server(_STATES[self.server].broadcast_server)
-                    self._send({"type": "response", "code": "server:ok", "status": [
-                        entry[1:] for entry in POOL
-                    ]})
+                    self._send({"type": "response", "code": "server:ok", "status": self.server.slots.serialize()})
                 else:
                     self._send({"type": "response", "code": "server:already-running"})
             elif command == "server:stop":
@@ -77,25 +77,26 @@ class MainHandler(IndexedHandler):
                             "value": state.pad_server is not None})
             elif command == "pad:clear":
                 index = payload.get("index")
+                force = payload.get("force")
                 if index in range(8):
-                    pad_clear(index)
+                    self.server.slots.release(index, force, zero=True)
                     self._send({"type": "response", "code": "pad:ok", "index": index})
                     self._broadcast({"type": "notification", "code": "pad:cleared", "index": index})
                 else:
                     self._send({"type": "response", "code": "pad:invalid-index", "index": index})
             elif command == "pad:clear-all":
-                pads_teardown()
+                self.server.slots.release_all()
                 self._send({"type": "response", "code": "pad:ok"})
                 self._broadcast({"type": "notification", "code": "pad:all-cleared"})
             elif command == "pad:status":
                 self._send({"type": "response", "code": "pad:status", "value": {
-                    "pads": [entry[1] for entry in POOL],
-                    "passwords": pad_get_passwords()
+                    "pads": self.server.slots.serialize(),
+                    "passwords": passwords_get()
                 }})
             elif command == "pad:reset-passwords":
-                pad_regenerate_passwords(*payload.get("indices", ()))
+                passwords_regenerate(*payload.get("indices", ()))
                 self._send({"type": "response", "code": "ok", "value": {
-                    "passwords": pad_get_passwords()
+                    "passwords": passwords_get()
                 }})
             else:
                 self._send({"type": "response", "code": "unknown-command", "value": command})
@@ -121,10 +122,15 @@ class MainServer(IndexedUnixServer):
             os.unlink(server_address)
         except:
             pass
+        self._slots = PadSlots()
         self._settings = None
         os.makedirs(os.path.dirname(server_address), 0o755, exist_ok=True)
         LOGGER.info(f"Binding main server to: {server_address}")
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+
+    @property
+    def slots(self):
+        return self._slots
 
     def server_activate(self) -> None:
         super().server_activate()

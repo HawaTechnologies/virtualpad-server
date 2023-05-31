@@ -195,6 +195,14 @@ class PadSlots:
 
         pad.release(force, expect, zero)
 
+    def release_all(self):
+        """
+        Releases all the pads.
+        """
+
+        for index in SLOTS_INDICES:
+            self.release(index, force=True, zero=True)
+
     def emit(self, pad_index: int, events: List[Tuple[int, int]]):
         """
         Emits events, if the slot is occupied.
