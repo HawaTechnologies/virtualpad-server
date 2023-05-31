@@ -136,7 +136,7 @@ class PadSlot:
         """
 
         if self._status == self.Status.RECENTLY_USED and \
-                (datetime.datetime.now() - self._status).total_seconds() > SLOTS_HEARTBEAT_TIME:
+                (datetime.datetime.now() - self._last_user_stamp).total_seconds() > SLOTS_HEARTBEAT_TIME:
             self._status = self.Status.EMPTY
             self._last_user_stamp = None
             self._device = None  # It will be destroyed.
