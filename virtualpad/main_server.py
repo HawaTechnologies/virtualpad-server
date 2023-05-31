@@ -3,11 +3,11 @@ import logging
 import os.path
 import socketserver
 from typing import Type, Union, Dict, Any
-from virtualpad.base_server import IndexedUnixServer, IndexedHandler, launch_server
-from virtualpad.broadcast_server import launch_broadcast_server
-from virtualpad.pad_server import launch_pad_server
-from virtualpad.pads import PadSlots
-from virtualpad.pads.settings import passwords_get, passwords_regenerate
+from .base_server import IndexedUnixServer, IndexedHandler, launch_server
+from .broadcast_server import launch_broadcast_server
+from .pad_server import launch_pad_server
+from .pads import PadSlots, PadNotInUse
+from .pads.settings import passwords_get, passwords_regenerate
 
 
 LOGGER = logging.getLogger("hawa.virtualpad.main-server")
@@ -79,9 +79,12 @@ class MainHandler(IndexedHandler):
                 index = payload.get("index")
                 force = payload.get("force")
                 if index in range(8):
-                    self.server.slots.release(index, force, zero=True)
-                    self._send({"type": "response", "code": "pad:ok", "index": index})
-                    self._broadcast({"type": "notification", "code": "pad:cleared", "index": index})
+                    try:
+                        self.server.slots.release(index, force, zero=True)
+                        self._send({"type": "response", "code": "pad:ok", "index": index})
+                        self._broadcast({"type": "notification", "code": "pad:cleared", "index": index})
+                    except PadNotInUse:
+                        self._broadcast({"type": "notification", "code": "pad:not-in-use", "index": index})
                 else:
                     self._send({"type": "response", "code": "pad:invalid-index", "index": index})
             elif command == "pad:clear-all":
