@@ -52,6 +52,7 @@ def _pad_auth(remote: 'PadHandler'):
     LOGGER.info(f"For pad index {pad_index}, '{nickname}' attempts to join")
     try:
         remote.slots.occupy(pad_index, nickname, attempted, remote.index)
+        remote.wfile.write(LOGIN_SUCCESS)
         return pad_index
     except PadIndexOutOfRange:
         remote.wfile.write(PAD_INVALID)
