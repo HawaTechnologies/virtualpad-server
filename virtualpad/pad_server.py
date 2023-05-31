@@ -100,7 +100,7 @@ class PadHandler(IndexedHandler):
                     self._broadcast({"type": "notification", "command": "pad:timeout", "index": self._pad_index})
                     try:
                         self.wfile.write(TIMEOUT)
-                        self._slots.release(self._pad_index, True, self.index, True)
+                        self._slots.release(self._pad_index, False, self.index, False)
                     except PadNotInUse:
                         pass
                 self._device = None
