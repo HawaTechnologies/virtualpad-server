@@ -23,3 +23,9 @@ class PadNotInUse(PadException):
 
 class PadMismatch(PadException):
     code = "pad_mismatch"
+
+
+class AuthenticationFailed(Exception):
+    """
+    A password mismatch.
+    """

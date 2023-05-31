@@ -2,8 +2,9 @@ import datetime
 from enum import IntEnum
 from typing import List, Tuple
 from .constants import SLOTS_HEARTBEAT_TIME, SLOTS_INDICES
-from .exceptions import PadInUse, PadNotInUse, PadIndexOutOfRange
+from .exceptions import PadInUse, PadNotInUse, PadIndexOutOfRange, AuthenticationFailed
 from .devices import make, emit
+from .settings import passwords_check
 
 
 class PadSlot:
@@ -70,10 +71,15 @@ class PadSlot:
         if self._device is None:
             self._device = make(self._name)
 
-    def release(self, force: bool = False):
+    def release(self, force: bool = False, expect: int = -1):
         """
         Releases the pad.
         :param force: Whether to force-drop the device as well.
+        :param expect: The connection id to expect. By default,
+            no expect is done. If an expect is specified, then
+            no cleanup is done if the current connection index
+            does not match the expected one (this is a silent
+            failure and only when force == False).
         """
 
         if force:
@@ -89,10 +95,11 @@ class PadSlot:
             if self._status != self.Status.OCCUPIED:
                 raise PadNotInUse(self._pad_index)
 
-            self._status = self.Status.RECENTLY_USED
-            self._nickname = ""
-            self._connection_index = -1
-            self._last_user_stamp = datetime.datetime.now()
+            if expect == -1 or expect == self._connection_index:
+                self._status = self.Status.RECENTLY_USED
+                self._nickname = ""
+                self._connection_index = -1
+                self._last_user_stamp = datetime.datetime.now()
 
     def emit(self, events: List[Tuple[int, int]]):
         """
@@ -144,18 +151,10 @@ class PadSlots:
 
     def occupy(self, pad_index: int, nickname: str, password: str, connection_index: int):
         """
-        :param pad_index:
-        :param nickname:
-        :param password:
-        :param connection_index:
-        :return:
-        """
-
-    def release(self, pad_index: int, force: bool = False):
-        """
-        Releases a pad by its index.
-        :param pad_index: The index of the pad to release.
-        :param force: Whether to force-drop the device as well.
+        :param pad_index: The index of the pad to occupy.
+        :param nickname: The nickname to use.
+        :param password: The password to attempt.
+        :param connection_index: The index of the connection that attempts this.
         """
 
         try:
@@ -163,7 +162,29 @@ class PadSlots:
         except IndexError:
             raise PadIndexOutOfRange(pad_index)
 
-        pad.release(force)
+        if not passwords_check(pad_index, password):
+            raise AuthenticationFailed()
+
+        pad.occupy(nickname, connection_index)
+
+    def release(self, pad_index: int, force: bool = False, expect: int = -1):
+        """
+        Releases a pad by its index.
+        :param pad_index: The index of the pad to release.
+        :param force: Whether to force-drop the device as well.
+        :param expect: The connection id to expect. By default,
+            no expect is done. If an expect is specified, then
+            no cleanup is done if the current connection index
+            does not match the expected one (this is a silent
+            failure and only when force == False).
+        """
+
+        try:
+            pad = self._slots[pad_index]
+        except IndexError:
+            raise PadIndexOutOfRange(pad_index)
+
+        pad.release(force, expect)
 
     def emit(self, pad_index: int, events: List[Tuple[int, int]]):
         """
