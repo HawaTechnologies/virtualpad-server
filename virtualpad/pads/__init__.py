@@ -1,7 +1,7 @@
 import datetime
 from enum import IntEnum
 from typing import List, Tuple
-from .constants import SLOTS_HEARTBEAT_TIME
+from .constants import SLOTS_HEARTBEAT_TIME, SLOTS_INDICES
 from .exceptions import PadInUse, PadNotInUse
 from .devices import make, emit
 
@@ -37,6 +37,22 @@ class PadSlot:
         self._connection_index = -1
         # And then, the stamp of last usage (main for status == RECENTLY_USED).
         self._last_user_stamp = None
+
+    @property
+    def status(self):
+        """
+        The slot status.
+        """
+
+        return self._status
+
+    @property
+    def nickname(self):
+        """
+        The nickname of the occupant. Only meaningful on OCCUPIED status.
+        """
+
+        return self._nickname
 
     def occupy(self, nickname: str, connection_index: int):
         """
@@ -104,3 +120,32 @@ class PadSlot:
             raise PadNotInUse(self._pad_index)
 
         emit(events)
+
+    def serialize(self):
+        """
+        Returns the current state of this pad, as (status, nick).
+        """
+
+        if self._status == self.Status.OCCUPIED:
+            return "occupied", self._nickname
+        elif self._status == self.Status.RECENTLY_USED:
+            return "recently-used", ""
+        else:
+            return "empty", ""
+
+
+class PadSlots:
+    """
+    A collection of instances, and means to manage them all indirectly.
+    """
+
+    def __init__(self):
+        self._slots = [PadSlot(index) for index in SLOTS_INDICES]
+
+    def serialize(self):
+        """
+        Serializes all the pads' current states.
+        :return: The list of serialized pads' states.
+        """
+
+        return [pad.serialize() for pad in self._slots]
