@@ -84,7 +84,7 @@ class MainHandler(IndexedHandler):
                         self._send({"type": "response", "code": "pad:ok", "index": index})
                         self._broadcast({"type": "notification", "code": "pad:cleared", "index": index})
                     except PadNotInUse:
-                        self._broadcast({"type": "notification", "code": "pad:not-in-use", "index": index})
+                        self._send({"type": "response", "code": "pad:ok", "index": index})
                 else:
                     self._send({"type": "response", "code": "pad:invalid-index", "index": index})
             elif command == "pad:clear-all":
