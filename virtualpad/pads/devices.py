@@ -106,9 +106,9 @@ def emit(device: uinput.Device, events: List[Tuple[int, int]]):
                 elif event == BTN_DOWN:
                     abs_y_changes = (abs_y_changes or set()) | {[127, 255][value]}
                 elif event == BTN_LEFT:
-                    abs_x_changes = (abs_x_changes or set()) | {[127, 255][value]}
-                elif event == BTN_RIGHT:
                     abs_x_changes = (abs_x_changes or set()) | {[127, 0][value]}
+                elif event == BTN_RIGHT:
+                    abs_x_changes = (abs_x_changes or set()) | {[127, 255][value]}
             else:
                 # If ABS_X or ABS_Y is pressed, it will force whatever the D-Pad
                 # expresses in its 2 (corresponding) directions.
