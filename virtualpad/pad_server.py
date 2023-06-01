@@ -26,7 +26,7 @@ TIMEOUT = bytes([8])
 
 # This variable checks whether the pad responded to the last ping command
 # or not (this is checked per-pad).
-_HEARTBEAT_INTERVAL = 5
+_HEARTBEAT_INTERVAL = 10
 
 # Buttons are: D-Pad (4), B-Pad (4), Shoulders (4), Start/Select (2) and axes (4).
 N_BUTTONS = 18
