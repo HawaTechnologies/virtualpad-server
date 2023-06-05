@@ -30,6 +30,10 @@ Or perhaps running it as a service owned by root (e.g. create the /etc/systemd/s
     [Install]
     WantedBy=multi-user.target
 
+Then, enable the new service:
+
+    sudo systemctl enable hawa-virtualpad.service
+
 Finally, ensure `virtualpad-admin` is owned by the group `hawamgmt`.
 
     sudo groupadd hawamgmt
