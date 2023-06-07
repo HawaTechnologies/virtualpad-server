@@ -14,7 +14,7 @@ Ensure this file has permissions 0o550 (only user, only read-execute) and group 
 logging.basicConfig()
 LOGGER = logging.getLogger("virtualpad-admin")
 START_USER = os.getenv('FOR_USER') or os.getenv('USER')
-ADMIN_SOCKET = f"/run/Hawa/admin.sock"
+ADMIN_SOCKET = f"/run/Hawa/virtualpad-admin.sock"
 
 
 def _send_command(command):

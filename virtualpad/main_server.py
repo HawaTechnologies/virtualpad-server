@@ -12,7 +12,7 @@ from .pads.settings import passwords_get, passwords_regenerate
 
 LOGGER = logging.getLogger("hawa.virtualpad.main-server")
 LOGGER.setLevel(logging.INFO)
-MAIN_BINDING = os.path.expanduser("/run/Hawa/admin.sock")
+MAIN_BINDING = os.path.expanduser("/run/Hawa/virtualpad-admin.sock")
 GROUP = "hawamgmt"
 
 
