@@ -61,7 +61,7 @@ class MainHandler(IndexedHandler):
 
             if command == "server:start":
                 if not state.pad_server:
-                    state.pad_server = launch_pad_server(_STATES[self.server].broadcast_server)
+                    state.pad_server = launch_pad_server(_STATES[self.server].broadcast_server, self.server.slots)
                     self._send({"type": "response", "code": "server:ok", "status": self.server.slots.serialize()})
                 else:
                     self._send({"type": "response", "code": "server:already-running"})
