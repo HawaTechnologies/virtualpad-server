@@ -96,6 +96,10 @@ def emit(device: uinput.Device, events: List[Tuple[int, int]]):
 
         for event, value in events:
             if event < 10:
+                # The vendor code I use is unknown. For this reason, I
+                # remap the controller's buttons NWSE=0123 to NWSE=3102.
+                if event < 4:
+                    event = {0: 3, 1: 1, 2: 0, 3: 2}[event]
                 # Sending the button as-is, but also with a SCAN event.
                 _emit(device, (0x04, 0x04), 0x90001 + event)
                 _emit(device, (0x01, 0x120 + event), 1 if value else 0)
