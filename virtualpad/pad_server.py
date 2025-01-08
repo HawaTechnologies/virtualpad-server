@@ -53,6 +53,7 @@ def _pad_auth(remote: 'PadHandler'):
     try:
         remote.slots.occupy(pad_index, nickname, attempted, remote.index)
         remote.wfile.write(LOGIN_SUCCESS)
+        remote.server._slot_connection_handlers[pad_index] = remote
         return pad_index
     except PadIndexOutOfRange:
         remote.wfile.write(PAD_INVALID)
@@ -190,6 +191,8 @@ class PadHandler(IndexedHandler):
             try:
                 if self._pad_index is not None:
                     self.slots.release(self._pad_index, False, self.index, False)
+                    if self.server._slot_connection_handlers[self._pad_index] == self:
+                        self.server._slot_connection_handlers[self._pad_index] = None
             except PadNotInUse:
                 pass
             self._pad_index = None
@@ -207,6 +210,7 @@ class PadServer(IndexedTCPServer):
     def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Type[socketserver.BaseRequestHandler],
                  bind_and_activate: bool, broadcast_server: IndexedTCPServer, slots: PadSlots):
         self._slots = slots
+        self._slot_connection_handlers = [None] * len(slots)
         self._use_heartbeat_loop = False
         self._broadcast_server = broadcast_server
         super().__init__(server_address, RequestHandlerClass, bind_and_activate)
@@ -214,6 +218,37 @@ class PadServer(IndexedTCPServer):
     @property
     def slots(self):
         return self._slots
+
+    def release(self, pad_index: int, force: bool = False, expect: int = -1,
+                zero: bool = False) -> None:
+        """
+        Releases a pad by its index. The client is notified.
+        :param pad_index: The index of the pad to release.
+        :param force: Whether to force-drop the device as well.
+        :param expect: The connection id to expect. By default,
+            no expect is done. If an expect is specified, then
+            no cleanup is done if the current connection index
+            does not match the expected one (this is a silent
+            failure and only when force == False).
+        :param zero: Whether to emit the zero keys or not.
+        """
+
+        self.slots.release(pad_index, force, expect, zero)
+        connection = self._slot_connection_handlers[pad_index]
+        if connection:
+            connection.wfile.write(TERMINATED)
+        self._slot_connection_handlers[pad_index] = None
+
+    def release_all(self):
+        """
+        Releases all the pads.
+        """
+
+        self.slots.release_all()
+        for connection in self._slot_connection_handlers:
+            if connection:
+                connection.wfile.write(TERMINATED)
+            self._slot_connection_handlers = [None] * len(self._slot_connection_handlers)
 
     def broadcast(self, message: bytes):
         self._broadcast_server.broadcast(message)

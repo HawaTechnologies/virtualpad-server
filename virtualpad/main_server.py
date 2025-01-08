@@ -80,7 +80,7 @@ class MainHandler(IndexedHandler):
                 force = payload.get("force")
                 if index in range(8):
                     try:
-                        self.server.slots.release(index, force, zero=True)
+                        state.pad_server.release(index, force, zero=True)
                         self._send({"type": "response", "code": "pad:ok", "index": index})
                         self._broadcast({"type": "notification", "code": "pad:cleared", "index": index})
                     except PadNotInUse:
@@ -88,7 +88,7 @@ class MainHandler(IndexedHandler):
                 else:
                     self._send({"type": "response", "code": "pad:invalid-index", "index": index})
             elif command == "pad:clear-all":
-                self.server.slots.release_all()
+                state.pad_server.release_all()
                 self._send({"type": "response", "code": "pad:ok"})
                 self._broadcast({"type": "notification", "code": "pad:all-cleared"})
             elif command == "pad:status":

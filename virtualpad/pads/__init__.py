@@ -173,6 +173,9 @@ class PadSlots:
 
         return self._slots[item]
 
+    def __len__(self):
+        return len(self._slots)
+
     def occupy(self, pad_index: int, nickname: str, password: str, connection_index: int):
         """
         :param pad_index: The index of the pad to occupy.
