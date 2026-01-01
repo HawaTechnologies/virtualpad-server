@@ -68,6 +68,7 @@ class MainHandler(IndexedHandler):
             elif command == "server:stop":
                 if state.pad_server:
                     state.pad_server.shutdown()
+                    state.pad_server.server_close()
                     state.pad_server = None
                     self._send({"type": "response", "code": "server:ok"})
                 else:
@@ -149,6 +150,7 @@ class MainServer(IndexedUnixServer):
         super().server_close()
         if self._settings and self._settings.broadcast_server:
             self._settings.broadcast_server.shutdown()
+            self._settings.broadcast_server.server_close()
         self._settings = None
         _STATES.pop(self, None)
         LOGGER.info("Server stopped")
