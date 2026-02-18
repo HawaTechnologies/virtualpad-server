@@ -42,6 +42,9 @@ def make(name: str):
 
     events = tuple(
         (0x01, k) for k in range(0x120, 0x12a)
+    ) + (
+        uinput.ABS_HAT0X,
+        uinput.ABS_HAT0Y
     ) + axes + ((0x04, 0x04),)
     device = uinput.Device(
         # bustype=virtual
@@ -56,7 +59,7 @@ def make(name: str):
     return device
 
 
-def emit_zero(device: uinput.Device):
+def emit_zero(device: uinput.Device, use_dhat_left_axis: bool):
     """
     Emits a release of all the input keys. This is used when doing
     a pad release in the following conditions:
@@ -64,17 +67,20 @@ def emit_zero(device: uinput.Device):
     - Kicking the user by timeout.
     - User gracefully closing.
     :param device: The device to emit the release of all the keys.
+    :param use_dhat_left_axis: Whether to use left-axes instead of buttons.
     """
 
     emit(device, [(index, 0) for index in range(N_BUTTONS)] +
-                 [(index, 127) for index in range(N_BUTTONS, N_BUTTONS + N_AXES)])
+                 [(index, 127) for index in range(N_BUTTONS, N_BUTTONS + N_AXES)],
+         use_dhat_left_axis)
 
 
-def emit(device: uinput.Device, events: List[Tuple[int, int]]):
+def emit(device: uinput.Device, events: List[Tuple[int, int]], use_dhat_left_axis: bool):
     """
     Sends all the events to the device, atomically.
     :param device: The device to send the events to.
     :param events: The events to send.
+    :param use_dhat_left_axis: Whether to use left-axes instead of buttons.
     """
 
     try:
@@ -93,6 +99,9 @@ def emit(device: uinput.Device, events: List[Tuple[int, int]]):
         # not set).
         abs_x_changes = None
         abs_y_changes = None
+        # Hat values.
+        abs_hat0x_changes = 0
+        abs_hat0y_changes = 0
 
         for event, value in events:
             if event < 10:
@@ -105,16 +114,31 @@ def emit(device: uinput.Device, events: List[Tuple[int, int]]):
                 _emit(device, (0x01, 0x120 + event), 1 if value else 0)
             elif event < 14:
                 # Adding an axis change in the proper direction.
-                if event == BTN_UP:
-                    abs_y_changes = (abs_y_changes or set()) | {[127, 0][value]}
-                elif event == BTN_DOWN:
-                    abs_y_changes = (abs_y_changes or set()) | {[127, 255][value]}
-                elif event == BTN_LEFT:
-                    abs_x_changes = (abs_x_changes or set()) | {[127, 0][value]}
-                elif event == BTN_RIGHT:
-                    abs_x_changes = (abs_x_changes or set()) | {[127, 255][value]}
+                if use_dhat_left_axis:
+                    if event == BTN_UP:
+                        abs_y_changes = (abs_y_changes or set()) | {[127, 0][value]}
+                    elif event == BTN_DOWN:
+                        abs_y_changes = (abs_y_changes or set()) | {[127, 255][value]}
+                    elif event == BTN_LEFT:
+                        abs_x_changes = (abs_x_changes or set()) | {[127, 0][value]}
+                    elif event == BTN_RIGHT:
+                        abs_x_changes = (abs_x_changes or set()) | {[127, 255][value]}
+                else:
+                    if event == BTN_UP:
+                        abs_hat0y_changes = (abs_hat0y_changes or 0) + (-1 if value else 0)
+                    elif event == BTN_DOWN:
+                        abs_hat0y_changes = (abs_hat0y_changes or 0) + (1 if value else 0)
+                    elif event == BTN_LEFT:
+                        abs_hat0x_changes = (abs_hat0x_changes or 0) + (-1 if value else 0)
+                    elif event == BTN_RIGHT:
+                        abs_hat0x_changes = (abs_hat0x_changes or 0) + (1 if value else 0)
+
+                    if abs_hat0y_changes is not None:
+                        _emit(device, uinput.ABS_HAT0Y, abs_hat0y_changes)
+                    if abs_hat0x_changes is not None:
+                        _emit(device, uinput.ABS_HAT0X, abs_hat0x_changes)
             else:
-                # If ABS_X or ABS_Y is pressed, it will force whatever the D-Pad
+                # If ABS_X or ABS_Y is pressed, it will force whatever the left axis
                 # expresses in its 2 (corresponding) directions.
                 if event == ABS_X:
                     abs_x_forced = True

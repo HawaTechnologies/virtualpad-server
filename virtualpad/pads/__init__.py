@@ -24,6 +24,15 @@ class PadSlot:
         OCCUPIED = 1
         RECENTLY_USED = 2
 
+    class DHatMode(IntEnum):
+        """
+        The D-Hat mode. It can be chosen to send
+        the left axis or the regular d-hat buttons.
+        """
+
+        BUTTONS = 0
+        LEFT_AXIS = 1
+
     def __init__(self, pad_index: str):
         """
         :param pad_index: This index will be guaranteed to be valid.
@@ -32,6 +41,7 @@ class PadSlot:
         self._pad_index = pad_index
         self._name = f"Hawa-VirtualPad-{pad_index}"
         self._status = self.Status.EMPTY
+        self._dhat_mode = self.DHatMode.BUTTONS
         self._device = None
         # Now, the user data (main for status == OCCUPIED).
         self._nickname = ""
@@ -63,6 +73,23 @@ class PadSlot:
 
         return self._connection_index
 
+    @property
+    def dhat_mode(self) -> DHatMode:
+        """
+        The mode of the d-hat (buttons or axes).
+        """
+
+        return self._dhat_mode if self._connection_index != -1 else self.DHatMode.BUTTONS
+
+    @dhat_mode.setter
+    def dhat_mode(self, value):
+        """
+        Sets the mode of the d-hat (buttons or axes).
+        """
+
+        if self._connection_index != -1:
+            self._dhat_mode = self.DHatMode.BUTTONS if value != self.DHatMode.LEFT_AXIS else self.DHatMode.LEFT_AXIS
+
     def occupy(self, nickname: str, connection_index: int):
         """
         Occupies the pad by a user in a given connection index.
@@ -76,6 +103,7 @@ class PadSlot:
         self._status = self.Status.OCCUPIED
         self._nickname = nickname
         self._connection_index = connection_index
+        self._dhat_mode = self.DHatMode.BUTTONS
         if self._device is None:
             self._device = make(self._name)
 
@@ -96,25 +124,25 @@ class PadSlot:
             if self._status == self.Status.EMPTY:
                 raise PadNotInUse(self._pad_index)
 
+            if zero and self._device:
+                emit_zero(self._device, self._dhat_mode == self.DHatMode.LEFT_AXIS)
             self._status = self.Status.EMPTY
             self._nickname = ""
             self._connection_index = -1
             self._last_user_stamp = None
-            if zero and self._device:
-                emit_zero(self._device)
             self._device = None  # It will be destroyed.
         else:
             if self._status != self.Status.OCCUPIED:
                 raise PadNotInUse(self._pad_index)
 
             if expect in [-1, self._connection_index]:
+                if zero:
+                    # By this point, self._device will exist.
+                    emit_zero(self._device, self._dhat_mode == self.DHatMode.LEFT_AXIS)
                 self._status = self.Status.RECENTLY_USED
                 self._nickname = ""
                 self._connection_index = -1
                 self._last_user_stamp = datetime.datetime.now()
-                if zero:
-                    # By this point, self._device will exist.
-                    emit_zero(self._device)
 
     def emit(self, events: List[Tuple[int, int]]):
         """
@@ -126,7 +154,7 @@ class PadSlot:
         if self._status != self.Status.OCCUPIED:
             raise PadNotInUse(self._pad_index)
 
-        emit(self._device, events)
+        emit(self._device, events, self._dhat_mode == self.DHatMode.LEFT_AXIS)
 
     def heartbeat(self) -> bool:
         """
@@ -193,6 +221,20 @@ class PadSlots:
             raise AuthenticationFailed()
 
         pad.occupy(nickname, connection_index)
+
+    def set_dhat_mode(self, pad_index: int, mode: PadSlot.DHatMode):
+        """
+        Sets the d-had mode of a controller.
+        :param pad_index: The controller index.
+        :param mode: The new d-hat mode.
+        """
+
+        try:
+            pad = self._slots[pad_index]
+        except IndexError:
+            raise PadIndexOutOfRange(pad_index)
+
+        pad.dhat_mode = mode
 
     def release(self, pad_index: int, force: bool = False, expect: int = -1,
                 zero: bool = False):

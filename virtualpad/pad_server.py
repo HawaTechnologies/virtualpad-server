@@ -7,7 +7,10 @@ import traceback
 from typing import Any, Type, Tuple
 from .base_server import IndexedTCPServer, IndexedHandler, launch_server_in_thread
 from .broadcast_server import BroadcastServer
-from .pads import PadSlots, SLOTS_INDICES, PadNotInUse, PadIndexOutOfRange, PadInUse, AuthenticationFailed, PadMismatch
+from .pads import (
+    PadSlots, PadSlot, SLOTS_INDICES,
+    PadNotInUse, PadIndexOutOfRange, PadInUse, AuthenticationFailed, PadMismatch
+)
 
 # Logger and settings.
 LOGGER = logging.getLogger("hawa.virtualpad.pad-server")
@@ -23,6 +26,8 @@ TERMINATED = bytes([5])
 COMMAND_LENGTH_MISMATCH = bytes([6])
 PONG = bytes([7])
 TIMEOUT = bytes([8])
+DHAT_MODE_BUTTONS_SET = bytes([9])
+DHAT_MODE_AXES_SET = bytes([10])
 
 # This variable checks whether the pad responded to the last ping command
 # or not (this is checked per-pad).
@@ -32,6 +37,8 @@ _HEARTBEAT_INTERVAL = 10
 N_BUTTONS = 18
 CLOSE_CONNECTION = N_BUTTONS + 1
 PING = N_BUTTONS + 2
+USE_DHAT_MODE_BUTTONS = N_BUTTONS + 3
+USE_DHAT_MODE_AXES = N_BUTTONS + 4
 
 
 def _pad_auth(remote: 'PadHandler'):
@@ -181,7 +188,12 @@ class PadHandler(IndexedHandler):
                     LOGGER.info(f"Remote #{self.index} ping")
                     self._has_ping = True
                     self.wfile.write(PONG)
-                    pass
+                elif length == USE_DHAT_MODE_BUTTONS:
+                    self.slots.set_dhat_mode(self._pad_index, PadSlot.DHatMode.BUTTONS)
+                    self.wfile.write(DHAT_MODE_BUTTONS_SET)
+                elif length == USE_DHAT_MODE_AXES:
+                    self.slots.set_dhat_mode(self._pad_index, PadSlot.DHatMode.LEFT_AXIS)
+                    self.wfile.write(DHAT_MODE_AXES_SET)
         except PadMismatch:
             pass
         except Exception as e:
