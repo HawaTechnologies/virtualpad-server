@@ -27,6 +27,31 @@ ABS_RY = 17
 N_AXES = 4
 
 
+_BUTTONS = [
+    uinput.BTN_SOUTH,
+    uinput.BTN_EAST,
+    uinput.BTN_WEST,
+    uinput.BTN_NORTH,
+    uinput.BTN_TL,
+    uinput.BTN_TR,
+    uinput.BTN_TL2,
+    uinput.BTN_TR2,
+    uinput.BTN_SELECT,
+    uinput.BTN_START,
+    # Actually, not supporting these two:
+    uinput.BTN_THUMBL,
+    uinput.BTN_THUMBR,
+]
+
+
+_DPAD = [
+    uinput.BTN_DPAD_UP,
+    uinput.BTN_DPAD_DOWN,
+    uinput.BTN_DPAD_LEFT,
+    uinput.BTN_DPAD_RIGHT
+]
+
+
 def make(name: str):
     """
     Builds a pad device.
@@ -34,18 +59,15 @@ def make(name: str):
     """
 
     axes = (
+        uinput.ABS_HAT0X + (-1, 1, 0, 0),
+        uinput.ABS_HAT0Y + (-1, 1, 0, 0),
         uinput.ABS_X + (0, 255, 0, 15),
         uinput.ABS_Y + (0, 255, 0, 15),
         uinput.ABS_RX + (0, 255, 0, 15),
         uinput.ABS_RY + (0, 255, 0, 15),
     )
 
-    events = tuple(
-        (0x01, k) for k in range(0x120, 0x12a)
-    ) + (
-        uinput.ABS_HAT0X,
-        uinput.ABS_HAT0Y
-    ) + axes + ((0x04, 0x04),)
+    events = tuple(_BUTTONS + _DPAD) + axes + ((0x04, 0x04),)
     device = uinput.Device(
         # bustype=virtual
         # vendor=0x2357 (I deliberately picked this one)
@@ -111,7 +133,7 @@ def emit(device: uinput.Device, events: List[Tuple[int, int]], use_dhat_left_axi
                     event = {0: 3, 1: 1, 2: 0, 3: 2}[event]
                 # Sending the button as-is, but also with a SCAN event.
                 _emit(device, (0x04, 0x04), 0x90001 + event)
-                _emit(device, (0x01, 0x120 + event), 1 if value else 0)
+                _emit(device, _BUTTONS[event], 1 if value else 0)
             elif event < 14:
                 # Adding an axis change in the proper direction.
                 if use_dhat_left_axis:
@@ -124,6 +146,14 @@ def emit(device: uinput.Device, events: List[Tuple[int, int]], use_dhat_left_axi
                     elif event == BTN_RIGHT:
                         abs_x_changes = (abs_x_changes or set()) | {[127, 255][value]}
                 else:
+                    # We add 2 to the scan event in this case, since THUMBL and THUMBR
+                    # are not used. So the base here is 0x90003, not 0x90001
+                    _emit(device, (0x04, 0x04), 0x90003 + event)
+                    # Also, we subtract BTN_UP to each event here, to normalize and
+                    # get the proper D-Pad button.
+                    _emit(device, _DPAD[event - BTN_UP], 1 if value else 0)
+
+                    # And, also, we process + send the HAT0X + HAT0Y axes.
                     if event == BTN_UP:
                         abs_hat0y_changes = (abs_hat0y_changes or 0) + (-1 if value else 0)
                     elif event == BTN_DOWN:
@@ -132,7 +162,6 @@ def emit(device: uinput.Device, events: List[Tuple[int, int]], use_dhat_left_axi
                         abs_hat0x_changes = (abs_hat0x_changes or 0) + (-1 if value else 0)
                     elif event == BTN_RIGHT:
                         abs_hat0x_changes = (abs_hat0x_changes or 0) + (1 if value else 0)
-
                     if abs_hat0y_changes is not None:
                         _emit(device, uinput.ABS_HAT0Y, abs_hat0y_changes)
                     if abs_hat0x_changes is not None:
